@@ -13,7 +13,9 @@ function App() {
     setLoading(true);
     setError('');
     try {
-      const response = await fetch('http://localhost:8000/dummy/sum/', {
+     const BASE_URL = 'http://localhost:8000/dummy/sum/';
+
+      const response = await fetch(BASE_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ a: Number(num1), b: Number(num2) }),
@@ -22,6 +24,7 @@ function App() {
       if (!response.ok) throw new Error('API request failed');
 
       const data = await response.json();
+      console.log('API Response:', data);
       setResult(data.result);
       setCount(data.count);
     } catch (err) {
