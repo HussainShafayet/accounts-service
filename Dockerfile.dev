@@ -1,0 +1,19 @@
+
+FROM node:20-bullseye
+
+WORKDIR /app
+# Use legacy OpenSSL provider for compatibility
+ENV NODE_OPTIONS=--openssl-legacy-provider
+
+# Copy package files and install dependencies
+COPY package*.json ./
+RUN npm install
+
+# Copy all source files
+COPY . .
+
+# Expose Vite default port
+EXPOSE 5173
+
+# Run Vite dev server
+CMD ["npm", "run", "dev"]
