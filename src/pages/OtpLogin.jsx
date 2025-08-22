@@ -10,6 +10,7 @@ export default function OtpLogin() {
 
   const [mobile, setMobile] = useState("");
   const [otp, setOtp] = useState("");
+  const [resending, setResending] = useState(false);
 
   if (isAuthenticated) navigate("/dashboard");
 
@@ -19,6 +20,18 @@ export default function OtpLogin() {
       await dispatch(requestOtp({ mobile })).unwrap();
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const resendOtp = async () => {
+    if (!mobile) return;
+    try {
+      setResending(true);
+      await dispatch(requestOtp({ mobile })).unwrap();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setResending(false);
     }
   };
 
@@ -79,6 +92,16 @@ export default function OtpLogin() {
               className="w-full py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
             >
               {loading ? "Verifying..." : "Verify OTP"}
+            </button>
+
+            {/* Resend OTP */}
+            <button
+              type="button"
+              disabled={resending}
+              onClick={resendOtp}
+              className="w-full py-2 px-4 mt-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition disabled:opacity-50"
+            >
+              {resending ? "Resending..." : "Resend OTP"}
             </button>
           </form>
         )}
