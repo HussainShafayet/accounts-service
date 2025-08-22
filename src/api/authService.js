@@ -2,6 +2,7 @@
 import api from "./axios";
 
 // endpoints (adjust paths if backend differs)
+export const registerApi = (body) => api.post("/register/", body);
 export const loginUserApi = (body) => api.post("/login/", body); // returns { access, user } and backend sets refresh cookie
 export const loginMobileApi = (body) => api.post("/send-otp/", body); // returns { access, user } and backend sets refresh cookie
 export const verifyOtpApi = (body) => api.post("/verify-otp/", body);

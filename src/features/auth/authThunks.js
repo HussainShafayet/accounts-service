@@ -1,10 +1,24 @@
 // src/features/auth/authThunks.js
 import { createAsyncThunk } from "@reduxjs/toolkit";
 import { Cookies } from "react-cookie";
-import { loginUserApi, logoutApi, refreshTokenApi, meApi, loginMobileApi, verifyOtpApi } from "../../api/authService";
+import { loginUserApi, logoutApi, refreshTokenApi, meApi, loginMobileApi, verifyOtpApi, registerApi } from "../../api/authService";
 
 const cookies = new Cookies();
 
+// Register
+export const registerUser = createAsyncThunk(
+  "auth/register",
+  async (credentials, { rejectWithValue }) => {
+    try {
+      const res = await registerApi(credentials);
+      return res.data; // { access, user } (access token can be set in cookie)
+    } catch (err) {
+      return rejectWithValue(err.response?.data || "Registration failed");
+    }
+  }
+);
+
+//Login
 export const loginUser = createAsyncThunk(
   "auth/login",
   async (credentials, { rejectWithValue }) => {

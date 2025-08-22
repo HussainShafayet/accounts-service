@@ -1,6 +1,6 @@
 // src/features/auth/authSlice.js
 import { createSlice } from "@reduxjs/toolkit";
-import { loginUser, logoutUser, refreshAccessToken, fetchMe, requestOtp, verifyOtp } from "./authThunks";
+import { loginUser, logoutUser, refreshAccessToken, fetchMe, requestOtp, verifyOtp, registerUser } from "./authThunks";
 
 import { Cookies } from "react-cookie";
 
@@ -24,6 +24,22 @@ const authSlice = createSlice({
   },
   extraReducers: (b) => {
     b
+    // Register
+      .addCase(registerUser.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(registerUser.fulfilled, (state, action) => {
+        state.loading = false;
+        //state.user = action.payload.user || action.payload;
+        //state.isAuthenticated = !!state.user;
+      })
+      .addCase(registerUser.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+      
+      //Login
       .addCase(loginUser.pending, (s) => { s.loading = true; s.error = null; })
       .addCase(loginUser.fulfilled, (s, a) => {
         s.loading = false;
