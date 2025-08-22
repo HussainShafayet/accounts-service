@@ -66,6 +66,9 @@ export default function Login() {
         </form>
 
         <div className="mt-6 text-center text-gray-600 text-sm">
+          <Link to="/phone-login" className="text-blue-600 hover:underline">
+            Login with Phone OTP
+          </Link>
           <Link to="/register" className="text-blue-600 hover:underline">Create an account</Link>
         </div>
       </div>

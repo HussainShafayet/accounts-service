@@ -1,6 +1,6 @@
 // src/features/auth/authSlice.js
 import { createSlice } from "@reduxjs/toolkit";
-import { loginUser, logoutUser, refreshAccessToken, fetchMe } from "./authThunks";
+import { loginUser, logoutUser, refreshAccessToken, fetchMe, requestOtp, verifyOtp } from "./authThunks";
 
 import { Cookies } from "react-cookie";
 
@@ -12,6 +12,7 @@ const initialState = {
   loading: false,
   error: null,
   isAuthenticated: !!accessToken, // true if cookie exists
+  tempToken: sessionStorage.getItem("tempToken") || null,
 };
 
 const authSlice = createSlice({
@@ -30,6 +31,26 @@ const authSlice = createSlice({
         s.isAuthenticated = !!a.payload;
       })
       .addCase(loginUser.rejected, (s, a) => { s.loading = false; s.error = a.payload; })
+
+      //mobile login
+       .addCase(requestOtp.pending, (s) => { s.loading = true; s.error = null; })
+       .addCase(requestOtp.fulfilled, (s, a) => {
+        s.loading = false;
+        s.tempToken = a.payload.temp_token;
+        sessionStorage.setItem("tempToken", a.payload.temp_token);
+        })
+      .addCase(requestOtp.rejected, (s, a) => { s.loading = false; s.error = a.payload; })
+
+      .addCase(verifyOtp.pending, (s) => { s.loading = true; s.error = null; })
+      .addCase(verifyOtp.fulfilled, (s, a) => {
+        s.loading = false;
+        s.user = a.payload.user;
+        s.isAuthenticated = true;
+        s.tempToken = null; // temp token no longer needed
+        sessionStorage.removeItem("tempToken")
+      })
+      .addCase(verifyOtp.rejected, (s, a) => { s.loading = false; s.error = a.payload; })
+      
 
       .addCase(fetchMe.fulfilled, (s, a) => { s.user = a.payload; s.isAuthenticated = !!a.payload; })
       .addCase(fetchMe.rejected, (s) => { s.user = null; s.isAuthenticated = false; })
