@@ -2,11 +2,16 @@
 import { createSlice } from "@reduxjs/toolkit";
 import { loginUser, logoutUser, refreshAccessToken, fetchMe } from "./authThunks";
 
+import { Cookies } from "react-cookie";
+
+const cookies = new Cookies();
+const accessToken = cookies.get("access_token"); // read cookie
+
 const initialState = {
   user: null,
   loading: false,
   error: null,
-  isAuthenticated: false,
+  isAuthenticated: !!accessToken, // true if cookie exists
 };
 
 const authSlice = createSlice({

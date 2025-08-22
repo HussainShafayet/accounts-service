@@ -1,4 +1,3 @@
-// src/api/axios.js
 import axios from "axios";
 import { Cookies } from "react-cookie";
 
@@ -7,7 +6,7 @@ const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
 const api = axios.create({
   baseURL: BASE_URL,
-  withCredentials: true, // send cookies (refresh token HttpOnly)
+  withCredentials: true, // send HttpOnly cookies
   headers: { "Content-Type": "application/json" },
 });
 
@@ -23,12 +22,14 @@ api.interceptors.response.use(
   (res) => res,
   async (error) => {
     const original = error.config;
+
     if (!original || original._retry) return Promise.reject(error);
 
     if (error.response?.status === 401) {
       original._retry = true;
+
       try {
-        // backend reads refresh cookie (HttpOnly) and returns { access }
+        // Attempt to refresh access token using HttpOnly refresh cookie
         const { data } = await axios.post(
           `${BASE_URL}/token/refresh/`,
           {},
@@ -36,25 +37,32 @@ api.interceptors.response.use(
         );
 
         if (data?.access) {
-          // set new access cookie (client-side cookie)
+          // Set new access token in cookie
           cookies.set("access_token", data.access, {
             path: "/",
             sameSite: "strict",
-            // secure: true, // enable in production (HTTPS)
+            secure: import.meta.env.MODE === "production",
           });
 
-          // update headers and retry original
+          // Update headers and retry original request
           api.defaults.headers.Authorization = `Bearer ${data.access}`;
           original.headers.Authorization = `Bearer ${data.access}`;
           return api(original);
+        } else {
+          throw new Error("No access token returned from refresh");
         }
-      } catch (e) {
-        // refresh failed -> remove access cookie
+      } catch (refreshError) {
+        // Refresh failed (invalid/expired refresh token)
         cookies.remove("access_token", { path: "/" });
-        // optional: navigate to login — do it from UI layer
-        return Promise.reject(e);
+
+        // Optionally: clear other state or local storage if needed
+        // Redirect user to login
+        window.location.href = "/login";
+
+        return Promise.reject(refreshError);
       }
     }
+
     return Promise.reject(error);
   }
 );
