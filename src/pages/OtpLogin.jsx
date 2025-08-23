@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { requestOtp, verifyOtp } from "../features/auth/authThunks";
 import { Link, useNavigate } from "react-router-dom";
+import {clearTempToken} from "../features/auth/authSlice";
 
 export default function OtpLogin() {
   const dispatch = useDispatch();
@@ -12,7 +13,7 @@ export default function OtpLogin() {
   const [mobile, setMobile] = useState("");
   const [otp, setOtp] = useState("");
   const [resending, setResending] = useState(false);
-  const [resendTimer, setResendTimer] = useState(0); // Resend cooldown
+  const [resendTimer, setResendTimer] = useState(0);
   const [otpExpiry, setOtpExpiry] = useState(
     sessionStorage.getItem("otpExpiry") ? parseInt(sessionStorage.getItem("otpExpiry")) : null
   );
@@ -51,7 +52,6 @@ export default function OtpLogin() {
 
     updateRemainingTime(); // run immediately
     const t = setInterval(updateRemainingTime, 1000);
-
     return () => clearInterval(t);
   }, [otpExpiry]);
 
@@ -62,7 +62,7 @@ export default function OtpLogin() {
       const expiry = Date.now() + 2 * 60 * 1000; // 2 min expiry
       sessionStorage.setItem("otpExpiry", expiry);
       setOtpExpiry(expiry);
-      setResendTimer(30); // 30 sec resend cooldown
+      setResendTimer(30);
     } catch (err) {
       console.error("Send OTP error:", err);
     }
@@ -96,6 +96,18 @@ export default function OtpLogin() {
     } catch (err) {
       console.error("Verify OTP error:", err);
     }
+  };
+
+  // Function to restart OTP login
+  const handleRestartOtp = () => {
+    setOtp("");
+    setOtpExpiry(null);
+    setRemainingExpiry(0);
+    setResendTimer(0);
+    sessionStorage.removeItem("tempToken");
+    sessionStorage.removeItem("otpExpiry");
+    // Redux tempToken reset
+    dispatch(clearTempToken());
   };
 
   return (
@@ -141,7 +153,7 @@ export default function OtpLogin() {
             </div>
 
             {remainingExpiry > 0 ? (
-              <p className="text-sm text-red-500">OTP expires in {remainingExpiry}s</p>
+              <p className="text-sm text-gray-500">OTP expires in {remainingExpiry}s</p>
             ) : (
               <p className="text-sm text-red-500">OTP expired. Please resend OTP.</p>
             )}
@@ -168,6 +180,17 @@ export default function OtpLogin() {
                 ? "Resending..."
                 : "Resend OTP"}
             </button>
+
+            {/* Link to restart OTP login */}
+            <div className="mt-2 text-center text-sm">
+              <button
+                type="button"
+                onClick={handleRestartOtp}
+                className="text-blue-600 hover:underline"
+              >
+                Start OTP login again
+              </button>
+            </div>
           </form>
         )}
 
