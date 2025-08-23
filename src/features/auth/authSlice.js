@@ -13,6 +13,7 @@ const initialState = {
   error: null,
   isAuthenticated: !!accessToken, // true if cookie exists
   tempToken: sessionStorage.getItem("tempToken") || null,
+  otpExpiry: sessionStorage.getItem("otpExpiry") || null, // load expiry
 };
 
 const authSlice = createSlice({
@@ -53,7 +54,10 @@ const authSlice = createSlice({
        .addCase(requestOtp.fulfilled, (s, a) => {
         s.loading = false;
         s.tempToken = a.payload.temp_token;
+        // Save tempToken + expiry time (2 min from now)
+        const expiryTime = Date.now() + 2 * 60 * 1000; 
         sessionStorage.setItem("tempToken", a.payload.temp_token);
+        sessionStorage.setItem("otpExpiry", expiryTime);
         })
       .addCase(requestOtp.rejected, (s, a) => { s.loading = false; s.error = a.payload; })
 
@@ -63,7 +67,8 @@ const authSlice = createSlice({
         s.user = a.payload.user;
         s.isAuthenticated = true;
         s.tempToken = null; // temp token no longer needed
-        sessionStorage.removeItem("tempToken")
+        sessionStorage.removeItem("tempToken");
+        sessionStorage.removeItem("otpExpiry");
       })
       .addCase(verifyOtp.rejected, (s, a) => { s.loading = false; s.error = a.payload; })
       
