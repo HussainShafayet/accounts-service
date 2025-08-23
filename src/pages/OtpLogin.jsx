@@ -16,6 +16,11 @@ export default function OtpLogin() {
   const [otpExpiry, setOtpExpiry] = useState(
     sessionStorage.getItem("otpExpiry") ? parseInt(sessionStorage.getItem("otpExpiry")) : null
   );
+  const [remainingExpiry, setRemainingExpiry] = useState(
+    sessionStorage.getItem("otpExpiry")
+      ? Math.floor((parseInt(sessionStorage.getItem("otpExpiry")) - Date.now()) / 1000)
+      : 0
+  );
 
   // Redirect if logged in
   useEffect(() => {
@@ -25,7 +30,7 @@ export default function OtpLogin() {
   // Resend cooldown timer
   useEffect(() => {
     if (resendTimer > 0) {
-      const t = setTimeout(() => setResendTimer(resendTimer - 1), 1000);
+      const t = setTimeout(() => setResendTimer((prev) => prev - 1), 1000);
       return () => clearTimeout(t);
     }
   }, [resendTimer]);
@@ -33,14 +38,20 @@ export default function OtpLogin() {
   // OTP expiry countdown
   useEffect(() => {
     if (!otpExpiry) return;
-    const t = setInterval(() => {
-      if (Date.now() >= otpExpiry) {
-        // Expired -> clear token + expiry
+
+    const updateRemainingTime = () => {
+      const remaining = Math.max(0, Math.floor((otpExpiry - Date.now()) / 1000));
+      setRemainingExpiry(remaining);
+      if (remaining <= 0) {
         sessionStorage.removeItem("tempToken");
         sessionStorage.removeItem("otpExpiry");
         setOtpExpiry(null);
       }
-    }, 1000);
+    };
+
+    updateRemainingTime(); // run immediately
+    const t = setInterval(updateRemainingTime, 1000);
+
     return () => clearInterval(t);
   }, [otpExpiry]);
 
@@ -87,11 +98,6 @@ export default function OtpLogin() {
     }
   };
 
-  const remainingExpiry =
-    otpExpiry && Date.now() < otpExpiry
-      ? Math.floor((otpExpiry - Date.now()) / 1000)
-      : 0;
-
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-100">
       <div className="w-full max-w-md bg-white rounded-2xl shadow-md p-8">
@@ -129,13 +135,13 @@ export default function OtpLogin() {
                 value={otp}
                 onChange={(e) => setOtp(e.target.value)}
                 required
-                disabled={!remainingExpiry}
+                disabled={remainingExpiry <= 0}
                 className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
 
             {remainingExpiry > 0 ? (
-              <p className="text-sm text-gray-500">OTP expires in {remainingExpiry}s</p>
+              <p className="text-sm text-red-500">OTP expires in {remainingExpiry}s</p>
             ) : (
               <p className="text-sm text-red-500">OTP expired. Please resend OTP.</p>
             )}
