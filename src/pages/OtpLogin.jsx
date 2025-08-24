@@ -2,12 +2,11 @@ import { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { requestOtp, verifyOtp } from "../features/auth/authThunks";
 import { Link, useNavigate } from "react-router-dom";
-import {clearTempToken} from "../features/auth/authSlice";
+import { clearTempToken } from "../features/auth/authSlice";
 
 export default function OtpLogin() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
-
   const { loading, error, isAuthenticated, tempToken } = useSelector((s) => s.auth);
 
   const [mobile, setMobile] = useState("");
@@ -23,12 +22,10 @@ export default function OtpLogin() {
       : 0
   );
 
-  // Redirect if logged in
   useEffect(() => {
     if (isAuthenticated) navigate("/dashboard");
   }, [isAuthenticated, navigate]);
 
-  // Resend cooldown timer
   useEffect(() => {
     if (resendTimer > 0) {
       const t = setTimeout(() => setResendTimer((prev) => prev - 1), 1000);
@@ -36,10 +33,8 @@ export default function OtpLogin() {
     }
   }, [resendTimer]);
 
-  // OTP expiry countdown
   useEffect(() => {
     if (!otpExpiry) return;
-
     const updateRemainingTime = () => {
       const remaining = Math.max(0, Math.floor((otpExpiry - Date.now()) / 1000));
       setRemainingExpiry(remaining);
@@ -49,8 +44,7 @@ export default function OtpLogin() {
         setOtpExpiry(null);
       }
     };
-
-    updateRemainingTime(); // run immediately
+    updateRemainingTime();
     const t = setInterval(updateRemainingTime, 1000);
     return () => clearInterval(t);
   }, [otpExpiry]);
@@ -59,7 +53,7 @@ export default function OtpLogin() {
     e.preventDefault();
     try {
       await dispatch(requestOtp({ mobile })).unwrap();
-      const expiry = Date.now() + 2 * 60 * 1000; // 2 min expiry
+      const expiry = Date.now() + 2 * 60 * 1000;
       sessionStorage.setItem("otpExpiry", expiry);
       setOtpExpiry(expiry);
       setResendTimer(30);
@@ -98,7 +92,6 @@ export default function OtpLogin() {
     }
   };
 
-  // Function to restart OTP login
   const handleRestartOtp = () => {
     setOtp("");
     setOtpExpiry(null);
@@ -106,33 +99,34 @@ export default function OtpLogin() {
     setResendTimer(0);
     sessionStorage.removeItem("tempToken");
     sessionStorage.removeItem("otpExpiry");
-    // Redux tempToken reset
     dispatch(clearTempToken());
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-100">
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-md p-8">
-        <h2 className="text-2xl font-semibold text-center mb-6">Mobile Login</h2>
+    <div className="flex items-center justify-center min-h-screen bg-gray-50">
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-lg p-8 transition-all">
+        <h2 className="text-2xl font-bold text-center text-gray-800 mb-6">
+          Mobile Login
+        </h2>
 
         {!tempToken ? (
-          <form onSubmit={sendOtp} className="space-y-4">
+          <form onSubmit={sendOtp} className="space-y-5">
             <div>
-              <label className="block text-gray-700 mb-1">Mobile Number</label>
+              <label className="block text-gray-600 mb-1">Mobile Number</label>
               <input
                 type="tel"
-                placeholder="Enter your mobile number"
                 value={mobile}
                 onChange={(e) => setMobile(e.target.value)}
+                placeholder="e.g., 9876543210"
                 required
-                className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 transition"
               />
             </div>
             {error && <p className="text-red-500 text-sm">{error}</p>}
             <button
               disabled={loading}
               type="submit"
-              className="w-full py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
+              className="w-full py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
             >
               {loading ? "Sending OTP..." : "Send OTP"}
             </button>
@@ -140,20 +134,22 @@ export default function OtpLogin() {
         ) : (
           <form onSubmit={submitOtp} className="space-y-4">
             <div>
-              <label className="block text-gray-700 mb-1">Enter OTP</label>
+              <label className="block text-gray-600 mb-1">Enter OTP</label>
               <input
                 type="text"
-                placeholder="Enter the OTP"
                 value={otp}
                 onChange={(e) => setOtp(e.target.value)}
+                placeholder="Enter the OTP"
                 required
                 disabled={remainingExpiry <= 0}
-                className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 transition"
               />
             </div>
 
             {remainingExpiry > 0 ? (
-              <p className="text-sm text-gray-500">OTP expires in {remainingExpiry}s</p>
+              <p className="text-sm text-gray-500">
+                OTP expires in <span className="font-medium">{remainingExpiry}s</span>
+              </p>
             ) : (
               <p className="text-sm text-red-500">OTP expired. Please resend OTP.</p>
             )}
@@ -163,7 +159,7 @@ export default function OtpLogin() {
             <button
               disabled={loading || remainingExpiry <= 0}
               type="submit"
-              className="w-full py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
+              className="w-full py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition disabled:opacity-50"
             >
               {loading ? "Verifying..." : "Verify OTP"}
             </button>
@@ -172,7 +168,7 @@ export default function OtpLogin() {
               type="button"
               disabled={resending || resendTimer > 0}
               onClick={resendOtp}
-              className="w-full py-2 px-4 mt-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition disabled:opacity-50"
+              className="w-full py-2 mt-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition disabled:opacity-50"
             >
               {resendTimer > 0
                 ? `Resend OTP in ${resendTimer}s`
@@ -181,12 +177,11 @@ export default function OtpLogin() {
                 : "Resend OTP"}
             </button>
 
-            {/* Link to restart OTP login */}
-            <div className="mt-2 text-center text-sm">
+            <div className="text-center mt-2">
               <button
                 type="button"
                 onClick={handleRestartOtp}
-                className="text-blue-600 hover:underline"
+                className="text-sm text-blue-600 hover:underline"
               >
                 Start OTP login again
               </button>
@@ -194,7 +189,7 @@ export default function OtpLogin() {
           </form>
         )}
 
-        <div className="mt-6 text-center text-gray-600 text-sm">
+        <div className="mt-6 text-center text-sm text-gray-600">
           <Link to="/login" className="text-blue-600 hover:underline">
             Login with Email/Username
           </Link>
