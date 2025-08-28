@@ -1,10 +1,10 @@
 // src/pages/Register.jsx
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { Link, useNavigate } from "react-router-dom";
 import { registerUser } from "../features/auth/authThunks";
 
-/** 
+/**
  * Normalize backend errors of shape:
  * {
  *   "email": ["This email is already registered."],
@@ -24,7 +24,6 @@ function normalizeBackendErrors(payload) {
   }
 
   for (const [key, val] of Object.entries(payload)) {
-    // arrays -> join as bullet list; strings -> wrap into array
     const msgs = Array.isArray(val) ? val : [val];
 
     if (["non_field_errors", "detail", "error", "message"].includes(key)) {
@@ -32,12 +31,38 @@ function normalizeBackendErrors(payload) {
       continue;
     }
 
-    // Treat any other key as a field error (even if UI doesn't have that field)
     fieldErrors[key] = (fieldErrors[key] || []).concat(msgs.map(String));
   }
 
   return { fieldErrors, generalErrors };
 }
+
+/* ------------------------- client-side helpers ------------------------- */
+
+const normalize = {
+  email: (v) => v.trim(),
+  phone: (v) =>
+    v
+      .replace(/[^\d+]/g, "") // keep digits and '+'
+      .replace(/^00/, "+") // 00xx -> +xx
+      .trim(),
+  text: (v) => v.trim().replace(/\s+/g, " "),
+};
+
+const isValidEmail = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+const isValidPhone = (v) => /^\+?[1-9]\d{7,14}$/.test(v); // 8–15 digits, no leading zero after country code
+
+// quick strength: 0..4
+const passwordScore = (v) => {
+  let s = 0;
+  if (v.length >= 8) s++;
+  if (/[A-Z]/.test(v)) s++;
+  if (/[a-z]/.test(v)) s++;
+  if (/\d/.test(v)) s++;
+  if (/[^A-Za-z0-9]/.test(v)) s++;
+  return Math.min(s, 4);
+};
+const strengthLabel = ["Very weak", "Weak", "OK", "Good", "Strong"];
 
 export default function Register() {
   const dispatch = useDispatch();
@@ -54,9 +79,11 @@ export default function Register() {
     confirm_password: "",
   });
 
-  // errors[field] => string[]
+  // per-field touched flags
+  const [touched, setTouched] = useState({});
+  // field errors: { field: string[] }
   const [errors, setErrors] = useState({});
-  // general (non-field) server errors
+  // non-field server errors
   const [serverErrors, setServerErrors] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -64,53 +91,70 @@ export default function Register() {
     if (isAuthenticated) navigate("/dashboard");
   }, [isAuthenticated, navigate]);
 
+  const markTouched = (name) =>
+    setTouched((t) => (t[name] ? t : { ...t, [name]: true }));
+
   const setField = (key, val) => {
-    setForm((f) => ({ ...f, [key]: val }));
-    // clear field-level errors on change
+    let v = val;
+    if (key === "email") v = normalize.email(val);
+    else if (key === "phone_number") v = normalize.phone(val);
+    else v = normalize.text(val);
+
+    setForm((f) => ({ ...f, [key]: v }));
+    if (!touched[key]) markTouched(key);
+
+    // Clear field-level errors on change
     setErrors((e) => {
       if (!e[key]) return e;
       const next = { ...e };
       delete next[key];
       return next;
     });
-    // clear general errors on any input
-    setServerErrors([]);
+
+    // Clear general errors on any change
+    if (serverErrors.length) setServerErrors([]);
   };
+
+  const fieldHasError = (name) => touched[name] && errors?.[name]?.length;
+
+  const pwScore = useMemo(() => passwordScore(form.password || ""), [form.password]);
 
   const validate = () => {
     const e = {};
-
     const push = (k, m) => {
       e[k] = e[k] || [];
       e[k].push(m);
     };
 
-    if (!form.first_name.trim()) push("first_name", "First name is required.");
-    if (!form.last_name.trim()) push("last_name", "Last name is required.");
+    const fn = form.first_name.trim();
+    const ln = form.last_name.trim();
+    const em = form.email.trim();
+    const ph = form.phone_number.trim();
+    const addr = form.address.trim();
+    const pw = form.password;
+    const cpw = form.confirm_password;
 
-    if (!form.email.trim() && !form.phone_number.trim()) {
+    if (!fn) push("first_name", "First name is required.");
+    if (!ln) push("last_name", "Last name is required.");
+
+    // email OR phone required
+    if (!em && !ph) {
       push("email", "Provide either email or phone number.");
       push("phone_number", "Provide either email or phone number.");
     }
 
-    if (form.email && !/^\S+@\S+\.\S+$/.test(form.email)) {
-      push("email", "Enter a valid email.");
-    }
-    if (form.phone_number && !/^\+?[0-9]{8,15}$/.test(form.phone_number.trim())) {
-      push("phone_number", "Enter a valid phone number.");
-    }
+    if (em && !isValidEmail(em)) push("email", "Enter a valid email address.");
+    if (ph && !isValidPhone(ph)) push("phone_number", "Enter a valid phone number (E.164).");
 
-    if (!form.address.trim()) push("address", "Address is required.");
+    if (!addr) push("address", "Address is required.");
 
-    if (!form.password) push("password", "Password is required.");
-    if (form.password && form.password.length < 8) {
-      push("password", "Password must be at least 8 characters.");
-    }
+    if (!pw) push("password", "Password is required.");
+    if (pw && pw.length < 8) push("password", "Password must be at least 8 characters.");
+    if (pw && pwScore < 3)
+      push("password", "Use upper/lowercase, numbers or symbols for a stronger password.");
 
-    if (!form.confirm_password) push("confirm_password", "Confirm your password.");
-    if (form.password && form.confirm_password && form.password !== form.confirm_password) {
-      push("confirm_password", "Passwords do not match.");
-    }
+    if (!cpw) push("confirm_password", "Confirm your password.");
+    if (pw && cpw && pw !== cpw) push("confirm_password", "Passwords do not match.");
 
     setErrors(e);
     return Object.keys(e).length === 0;
@@ -118,6 +162,18 @@ export default function Register() {
 
   const onSubmit = async (e) => {
     e.preventDefault();
+
+    // mark all fields as touched so errors show
+    setTouched({
+      first_name: true,
+      last_name: true,
+      email: true,
+      phone_number: true,
+      address: true,
+      password: true,
+      confirm_password: true,
+    });
+
     if (!validate()) return;
 
     setIsSubmitting(true);
@@ -128,21 +184,19 @@ export default function Register() {
       await dispatch(registerUser(payload)).unwrap();
       navigate("/dashboard");
     } catch (err) {
-      // Safely pull response data (axios-like)
       const data =
         err?.response?.data ??
-        err?.data ?? // some libs use err.data
-        err;         // fallback
+        err?.data ?? // some libs
+        err;
 
       const { fieldErrors, generalErrors } = normalizeBackendErrors(data);
 
-      // Merge field errors into our state (overwrite same keys)
+      // Merge field errors
       setErrors((prev) => ({ ...prev, ...fieldErrors }));
-
-      // General errors block (or unknown fields we don't render individually)
+      // Non-field
       setServerErrors((prev) => prev.concat(generalErrors));
     } finally {
-      setIsSubmitting(false); // ✅ re-enable button after error/success
+      setIsSubmitting(false);
     }
   };
 
@@ -155,17 +209,26 @@ export default function Register() {
     !form.password ||
     !form.confirm_password;
 
-  const fieldClass =
-    "w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500";
+  const fieldClassBase =
+    "w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 transition";
+  const fieldClass = (name) =>
+    [
+      fieldClassBase,
+      fieldHasError(name)
+        ? "border-red-400 focus:ring-red-400"
+        : "border-gray-300 focus:ring-blue-500",
+    ].join(" ");
+
   const labelClass = "block text-gray-700 mb-1";
   const errClass = "text-red-500 text-xs mt-1";
 
-  // helper to render list of errors for a field
-  const FieldErrors = ({ name }) =>
+  const FieldErrors = ({ name, id }) =>
     errors?.[name]?.length ? (
-      <ul className="mt-1 space-y-0.5">
+      <ul id={id} className="mt-1 space-y-0.5">
         {errors[name].map((m, i) => (
-          <li key={i} className={errClass}>• {m}</li>
+          <li key={i} className={errClass}>
+            • {m}
+          </li>
         ))}
       </ul>
     ) : null;
@@ -176,95 +239,139 @@ export default function Register() {
         <h2 className="text-2xl font-semibold text-center mb-6">Register</h2>
 
         <form onSubmit={onSubmit} noValidate className="space-y-4">
+          {/* First name */}
           <div>
-            <label className={labelClass}>First Name</label>
+            <label className={labelClass} htmlFor="first_name">First Name</label>
             <input
-              className={fieldClass}
+              id="first_name"
+              className={fieldClass("first_name")}
               value={form.first_name}
               onChange={(e) => setField("first_name", e.target.value)}
+              onBlur={() => markTouched("first_name")}
               placeholder="Enter your first name"
               type="text"
+              aria-invalid={!!fieldHasError("first_name")}
+              aria-describedby={fieldHasError("first_name") ? "first_name-errors" : undefined}
             />
-            <FieldErrors name="first_name" />
+            <FieldErrors name="first_name" id="first_name-errors" />
           </div>
 
+          {/* Last name */}
           <div>
-            <label className={labelClass}>Last Name</label>
+            <label className={labelClass} htmlFor="last_name">Last Name</label>
             <input
-              className={fieldClass}
+              id="last_name"
+              className={fieldClass("last_name")}
               value={form.last_name}
               onChange={(e) => setField("last_name", e.target.value)}
+              onBlur={() => markTouched("last_name")}
               placeholder="Enter your last name"
               type="text"
+              aria-invalid={!!fieldHasError("last_name")}
+              aria-describedby={fieldHasError("last_name") ? "last_name-errors" : undefined}
             />
-            <FieldErrors name="last_name" />
+            <FieldErrors name="last_name" id="last_name-errors" />
           </div>
 
+          {/* Email */}
           <div>
-            <label className={labelClass}>Email</label>
+            <label className={labelClass} htmlFor="email">Email</label>
             <input
-              className={fieldClass}
+              id="email"
+              className={fieldClass("email")}
               value={form.email}
               onChange={(e) => setField("email", e.target.value)}
+              onBlur={() => markTouched("email")}
               placeholder="example@mail.com"
               type="email"
+              aria-invalid={!!fieldHasError("email")}
+              aria-describedby={fieldHasError("email") ? "email-errors" : undefined}
             />
-            <FieldErrors name="email" />
+            <FieldErrors name="email" id="email-errors" />
           </div>
 
+          {/* Phone */}
           <div>
-            <label className={labelClass}>Phone Number</label>
+            <label className={labelClass} htmlFor="phone_number">Phone Number</label>
             <input
-              className={fieldClass}
+              id="phone_number"
+              className={fieldClass("phone_number")}
               value={form.phone_number}
               onChange={(e) => setField("phone_number", e.target.value)}
+              onBlur={() => markTouched("phone_number")}
               placeholder="+8801XXXXXXXXX"
               type="tel"
+              aria-invalid={!!fieldHasError("phone_number")}
+              aria-describedby={fieldHasError("phone_number") ? "phone_number-errors" : undefined}
             />
-            <FieldErrors name="phone_number" />
+            <FieldErrors name="phone_number" id="phone_number-errors" />
           </div>
 
+          {/* Address */}
           <div>
-            <label className={labelClass}>Address</label>
+            <label className={labelClass} htmlFor="address">Address</label>
             <input
-              className={fieldClass}
+              id="address"
+              className={fieldClass("address")}
               value={form.address}
               onChange={(e) => setField("address", e.target.value)}
+              onBlur={() => markTouched("address")}
               placeholder="Enter your address"
               type="text"
+              aria-invalid={!!fieldHasError("address")}
+              aria-describedby={fieldHasError("address") ? "address-errors" : undefined}
             />
-            <FieldErrors name="address" />
+            <FieldErrors name="address" id="address-errors" />
           </div>
 
+          {/* Password */}
           <div>
-            <label className={labelClass}>Password</label>
+            <label className={labelClass} htmlFor="password">Password</label>
             <input
-              className={fieldClass}
+              id="password"
+              className={fieldClass("password")}
               value={form.password}
               onChange={(e) => setField("password", e.target.value)}
+              onBlur={() => markTouched("password")}
               placeholder="Enter a strong password"
               type="password"
               autoComplete="new-password"
+              aria-invalid={!!fieldHasError("password")}
+              aria-describedby={fieldHasError("password") ? "password-errors" : "password-strength"}
             />
-            <FieldErrors name="password" />
+            {/* Strength meter */}
+            {form.password && (
+              <div id="password-strength" className="mt-1 text-xs">
+                Strength: {strengthLabel[pwScore]}
+              </div>
+            )}
+            <FieldErrors name="password" id="password-errors" />
           </div>
 
+          {/* Confirm password */}
           <div>
-            <label className={labelClass}>Confirm Password</label>
+            <label className={labelClass} htmlFor="confirm_password">Confirm Password</label>
             <input
-              className={fieldClass}
+              id="confirm_password"
+              className={fieldClass("confirm_password")}
               value={form.confirm_password}
               onChange={(e) => setField("confirm_password", e.target.value)}
+              onBlur={() => markTouched("confirm_password")}
               placeholder="Re-enter your password"
               type="password"
               autoComplete="new-password"
+              onPaste={(e) => e.preventDefault()} // optional UX
+              aria-invalid={!!fieldHasError("confirm_password")}
+              aria-describedby={
+                fieldHasError("confirm_password") ? "confirm_password-errors" : undefined
+              }
             />
-            <FieldErrors name="confirm_password" />
+            <FieldErrors name="confirm_password" id="confirm_password-errors" />
           </div>
 
           {/* General / non-field errors */}
           {!!serverErrors.length && (
-            <div className="text-red-600 text-sm space-y-0.5">
+            <div className="text-red-600 text-sm space-y-0.5" role="alert">
               {serverErrors.map((m, i) => (
                 <div key={i}>• {m}</div>
               ))}
