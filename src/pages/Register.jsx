@@ -49,8 +49,12 @@ const normalize = {
   text: (v) => v.trim().replace(/\s+/g, " "),
 };
 
+// basic validators
 const isValidEmail = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 const isValidPhone = (v) => /^\+?[1-9]\d{7,14}$/.test(v); // 8–15 digits, no leading zero after country code
+const nameRegex = /^[A-Za-zÀ-ÖØ-öø-ÿ' -]{2,40}$/;          // supports many locales
+const isCommonPassword = (v) => /^(123456|password|qwerty|111111|123123|abc123)$/i.test(v);
+const isAllNumeric = (v) => /^\d+$/.test(v);
 
 // quick strength: 0..4
 const passwordScore = (v) => {
@@ -134,24 +138,33 @@ export default function Register() {
     const pw = form.password;
     const cpw = form.confirm_password;
 
+    // Names
     if (!fn) push("first_name", "First name is required.");
     if (!ln) push("last_name", "Last name is required.");
+    if (fn && !nameRegex.test(fn)) push("first_name", "First name looks invalid.");
+    if (ln && !nameRegex.test(ln)) push("last_name", "Last name looks invalid.");
 
-    // email OR phone required
+    // Email OR phone required (inclusive rule)
     if (!em && !ph) {
       push("email", "Provide either email or phone number.");
       push("phone_number", "Provide either email or phone number.");
     }
 
+    // Email/Phone formats (only if present)
     if (em && !isValidEmail(em)) push("email", "Enter a valid email address.");
     if (ph && !isValidPhone(ph)) push("phone_number", "Enter a valid phone number (E.164).");
 
+    // Address
     if (!addr) push("address", "Address is required.");
+    if (addr && addr.length < 6) push("address", "Address seems too short (min 6 chars).");
 
+    // Passwords
     if (!pw) push("password", "Password is required.");
     if (pw && pw.length < 8) push("password", "Password must be at least 8 characters.");
     if (pw && pwScore < 3)
       push("password", "Use upper/lowercase, numbers or symbols for a stronger password.");
+    if (pw && isCommonPassword(pw)) push("password", "Password is too common.");
+    if (pw && isAllNumeric(pw)) push("password", "Password cannot be entirely numeric.");
 
     if (!cpw) push("confirm_password", "Confirm your password.");
     if (pw && cpw && pw !== cpw) push("confirm_password", "Passwords do not match.");
@@ -209,19 +222,20 @@ export default function Register() {
     !form.password ||
     !form.confirm_password;
 
+  // UI classes
   const fieldClassBase =
     "w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 transition";
-  const fieldClass = (name) =>
-    [
-      fieldClassBase,
-      fieldHasError(name)
-        ? "border-red-400 focus:ring-red-400"
-        : "border-gray-300 focus:ring-blue-500",
-    ].join(" ");
+  const successClass = "border-green-400 focus:ring-green-400";
+  const fieldClass = (name) => {
+    if (fieldHasError(name)) return `${fieldClassBase} border-red-400 focus:ring-red-400`;
+    if (touched[name] && form[name] && !errors[name]) return `${fieldClassBase} ${successClass}`;
+    return `${fieldClassBase} border-gray-300 focus:ring-blue-500`;
+  };
 
   const labelClass = "block text-gray-700 mb-1";
   const errClass = "text-red-500 text-xs mt-1";
 
+  // helper to render list of errors for a field
   const FieldErrors = ({ name, id }) =>
     errors?.[name]?.length ? (
       <ul id={id} className="mt-1 space-y-0.5">
@@ -233,78 +247,133 @@ export default function Register() {
       </ul>
     ) : null;
 
+  const errorCount = Object.values(errors).reduce(
+    (n, arr) => n + (Array.isArray(arr) ? arr.length : 0),
+    0
+  );
+
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-100">
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-md p-8">
-        <h2 className="text-2xl font-semibold text-center mb-6">Register</h2>
+      <div className="w-full max-w-2xl bg-white rounded-2xl shadow-md p-8">
+        <h2 className="text-2xl font-semibold text-center mb-6">Create your account</h2>
+
+        {/* Error summary */}
+        {errorCount > 0 && (
+          <div
+            className="text-red-700 bg-red-50 border border-red-200 rounded p-3 text-sm mb-4"
+            role="alert"
+            aria-live="polite"
+          >
+            Please fix {errorCount} issue{errorCount > 1 ? "s" : ""} below.
+          </div>
+        )}
+
+        {/* Server errors */}
+        {!!serverErrors.length && (
+          <div
+            className="text-red-700 bg-red-50 border border-red-200 rounded p-3 text-sm mb-4"
+            role="alert"
+            aria-live="polite"
+          >
+            {serverErrors.map((m, i) => (
+              <div key={i}>• {m}</div>
+            ))}
+          </div>
+        )}
 
         <form onSubmit={onSubmit} noValidate className="space-y-4">
-          {/* First name */}
-          <div>
-            <label className={labelClass} htmlFor="first_name">First Name</label>
-            <input
-              id="first_name"
-              className={fieldClass("first_name")}
-              value={form.first_name}
-              onChange={(e) => setField("first_name", e.target.value)}
-              onBlur={() => markTouched("first_name")}
-              placeholder="Enter your first name"
-              type="text"
-              aria-invalid={!!fieldHasError("first_name")}
-              aria-describedby={fieldHasError("first_name") ? "first_name-errors" : undefined}
-            />
-            <FieldErrors name="first_name" id="first_name-errors" />
+          {/* Names */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* First name */}
+            <div>
+              <label className={labelClass} htmlFor="first_name">First Name</label>
+              <input
+                id="first_name"
+                className={fieldClass("first_name")}
+                value={form.first_name}
+                onChange={(e) => setField("first_name", e.target.value)}
+                onBlur={() => markTouched("first_name")}
+                placeholder="Enter your first name"
+                type="text"
+                autoComplete="given-name"
+                maxLength={40}
+                aria-invalid={!!fieldHasError("first_name")}
+                aria-describedby={fieldHasError("first_name") ? "first_name-errors" : undefined}
+              />
+              <FieldErrors name="first_name" id="first_name-errors" />
+            </div>
+
+            {/* Last name */}
+            <div>
+              <label className={labelClass} htmlFor="last_name">Last Name</label>
+              <input
+                id="last_name"
+                className={fieldClass("last_name")}
+                value={form.last_name}
+                onChange={(e) => setField("last_name", e.target.value)}
+                onBlur={() => markTouched("last_name")}
+                placeholder="Enter your last name"
+                type="text"
+                autoComplete="family-name"
+                maxLength={40}
+                aria-invalid={!!fieldHasError("last_name")}
+                aria-describedby={fieldHasError("last_name") ? "last_name-errors" : undefined}
+              />
+              <FieldErrors name="last_name" id="last_name-errors" />
+            </div>
           </div>
 
-          {/* Last name */}
-          <div>
-            <label className={labelClass} htmlFor="last_name">Last Name</label>
-            <input
-              id="last_name"
-              className={fieldClass("last_name")}
-              value={form.last_name}
-              onChange={(e) => setField("last_name", e.target.value)}
-              onBlur={() => markTouched("last_name")}
-              placeholder="Enter your last name"
-              type="text"
-              aria-invalid={!!fieldHasError("last_name")}
-              aria-describedby={fieldHasError("last_name") ? "last_name-errors" : undefined}
-            />
-            <FieldErrors name="last_name" id="last_name-errors" />
-          </div>
+          {/* Email / Phone */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Email */}
+            <div>
+              <label className={labelClass} htmlFor="email">Email</label>
+              <input
+                id="email"
+                className={fieldClass("email")}
+                value={form.email}
+                onChange={(e) => setField("email", e.target.value)}
+                onBlur={() => markTouched("email")}
+                placeholder="example@mail.com"
+                type="email"
+                inputMode="email"
+                autoComplete="email"
+                maxLength={100}
+                aria-invalid={!!fieldHasError("email")}
+                aria-describedby={fieldHasError("email") ? "email-errors" : "email-help"}
+              />
+              {!fieldHasError("email") && (
+                <p id="email-help" className="text-xs text-gray-500 mt-1">
+                  Either email or phone is required.
+                </p>
+              )}
+              <FieldErrors name="email" id="email-errors" />
+            </div>
 
-          {/* Email */}
-          <div>
-            <label className={labelClass} htmlFor="email">Email</label>
-            <input
-              id="email"
-              className={fieldClass("email")}
-              value={form.email}
-              onChange={(e) => setField("email", e.target.value)}
-              onBlur={() => markTouched("email")}
-              placeholder="example@mail.com"
-              type="email"
-              aria-invalid={!!fieldHasError("email")}
-              aria-describedby={fieldHasError("email") ? "email-errors" : undefined}
-            />
-            <FieldErrors name="email" id="email-errors" />
-          </div>
-
-          {/* Phone */}
-          <div>
-            <label className={labelClass} htmlFor="phone_number">Phone Number</label>
-            <input
-              id="phone_number"
-              className={fieldClass("phone_number")}
-              value={form.phone_number}
-              onChange={(e) => setField("phone_number", e.target.value)}
-              onBlur={() => markTouched("phone_number")}
-              placeholder="+8801XXXXXXXXX"
-              type="tel"
-              aria-invalid={!!fieldHasError("phone_number")}
-              aria-describedby={fieldHasError("phone_number") ? "phone_number-errors" : undefined}
-            />
-            <FieldErrors name="phone_number" id="phone_number-errors" />
+            {/* Phone */}
+            <div>
+              <label className={labelClass} htmlFor="phone_number">Phone Number</label>
+              <input
+                id="phone_number"
+                className={fieldClass("phone_number")}
+                value={form.phone_number}
+                onChange={(e) => setField("phone_number", e.target.value)}
+                onBlur={() => markTouched("phone_number")}
+                placeholder="+8801XXXXXXXXX"
+                type="tel"
+                inputMode="tel"
+                autoComplete="tel"
+                maxLength={16}
+                aria-invalid={!!fieldHasError("phone_number")}
+                aria-describedby={fieldHasError("phone_number") ? "phone_number-errors" : "phone-help"}
+              />
+              {!fieldHasError("phone_number") && (
+                <p id="phone-help" className="text-xs text-gray-500 mt-1">
+                  E.164 format e.g., +8801XXXXXXXXX
+                </p>
+              )}
+              <FieldErrors name="phone_number" id="phone_number-errors" />
+            </div>
           </div>
 
           {/* Address */}
@@ -318,6 +387,8 @@ export default function Register() {
               onBlur={() => markTouched("address")}
               placeholder="Enter your address"
               type="text"
+              autoComplete="street-address"
+              maxLength={120}
               aria-invalid={!!fieldHasError("address")}
               aria-describedby={fieldHasError("address") ? "address-errors" : undefined}
             />
@@ -327,19 +398,30 @@ export default function Register() {
           {/* Password */}
           <div>
             <label className={labelClass} htmlFor="password">Password</label>
-            <input
-              id="password"
-              className={fieldClass("password")}
-              value={form.password}
-              onChange={(e) => setField("password", e.target.value)}
-              onBlur={() => markTouched("password")}
-              placeholder="Enter a strong password"
-              type="password"
-              autoComplete="new-password"
-              aria-invalid={!!fieldHasError("password")}
-              aria-describedby={fieldHasError("password") ? "password-errors" : "password-strength"}
-            />
-            {/* Strength meter */}
+            <div className="relative">
+              <input
+                id="password"
+                className={fieldClass("password")}
+                value={form.password}
+                onChange={(e) => setField("password", e.target.value)}
+                onBlur={() => markTouched("password")}
+                placeholder="Enter a strong password"
+                type={touched.showPw ? "text" : "password"} // simple toggle holder
+                autoComplete="new-password"
+                maxLength={64}
+                aria-invalid={!!fieldHasError("password")}
+                aria-describedby={fieldHasError("password") ? "password-errors" : "password-strength"}
+              />
+              {/* lightweight show/hide without extra state keys */}
+              <button
+                type="button"
+                onClick={() => setTouched((t) => ({ ...t, showPw: !t.showPw }))}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-sm text-gray-600"
+                aria-label={touched.showPw ? "Hide password" : "Show password"}
+              >
+                {touched.showPw ? "Hide" : "Show"}
+              </button>
+            </div>
             {form.password && (
               <div id="password-strength" className="mt-1 text-xs">
                 Strength: {strengthLabel[pwScore]}
@@ -351,39 +433,47 @@ export default function Register() {
           {/* Confirm password */}
           <div>
             <label className={labelClass} htmlFor="confirm_password">Confirm Password</label>
-            <input
-              id="confirm_password"
-              className={fieldClass("confirm_password")}
-              value={form.confirm_password}
-              onChange={(e) => setField("confirm_password", e.target.value)}
-              onBlur={() => markTouched("confirm_password")}
-              placeholder="Re-enter your password"
-              type="password"
-              autoComplete="new-password"
-              onPaste={(e) => e.preventDefault()} // optional UX
-              aria-invalid={!!fieldHasError("confirm_password")}
-              aria-describedby={
-                fieldHasError("confirm_password") ? "confirm_password-errors" : undefined
-              }
-            />
+            <div className="relative">
+              <input
+                id="confirm_password"
+                className={fieldClass("confirm_password")}
+                value={form.confirm_password}
+                onChange={(e) => setField("confirm_password", e.target.value)}
+                onBlur={() => markTouched("confirm_password")}
+                placeholder="Re-enter your password"
+                type={touched.showCPw ? "text" : "password"}
+                autoComplete="new-password"
+                maxLength={64}
+                onPaste={(e) => e.preventDefault()} // optional UX: prevent paste
+                aria-invalid={!!fieldHasError("confirm_password")}
+                aria-describedby={
+                  fieldHasError("confirm_password") ? "confirm_password-errors" : undefined
+                }
+              />
+              <button
+                type="button"
+                onClick={() => setTouched((t) => ({ ...t, showCPw: !t.showCPw }))}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-sm text-gray-600"
+                aria-label={touched.showCPw ? "Hide confirm password" : "Show confirm password"}
+              >
+                {touched.showCPw ? "Hide" : "Show"}
+              </button>
+            </div>
             <FieldErrors name="confirm_password" id="confirm_password-errors" />
           </div>
 
-          {/* General / non-field errors */}
-          {!!serverErrors.length && (
-            <div className="text-red-600 text-sm space-y-0.5" role="alert">
-              {serverErrors.map((m, i) => (
-                <div key={i}>• {m}</div>
-              ))}
-            </div>
-          )}
-
           <button
             type="submit"
-            disabled={disabled}
+            disabled={isSubmitting ||
+              !form.first_name ||
+              !form.last_name ||
+              (!form.email && !form.phone_number) ||
+              !form.address ||
+              !form.password ||
+              !form.confirm_password}
             className="w-full py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
           >
-            {isSubmitting ? "Registering..." : "Register"}
+            {isSubmitting ? "Creating account..." : "Create account"}
           </button>
         </form>
 
