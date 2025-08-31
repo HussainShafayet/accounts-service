@@ -44,7 +44,6 @@ const otpSlice = createSlice({
       s.verifyError = null;
     });
     b.addCase(verifyOtp.fulfilled, (s, a) => {
-        console.log(s, a);
         
       s.verifyLoading = false;
       s.verified = !!a.payload?.verified || true;

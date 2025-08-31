@@ -1,7 +1,7 @@
 // src/features/auth/authThunks.js
 import { createAsyncThunk } from "@reduxjs/toolkit";
 import { Cookies } from "react-cookie";
-import { loginUserApi, logoutApi, refreshTokenApi, meApi, loginMobileApi, verifyOtpApi, registerApi } from "../../api/authService";
+import { loginUserApi, logoutApi, refreshTokenApi, meApi, loginMobileApi, registerApi } from "../../api/authService";
 
 const cookies = new Cookies();
 
@@ -38,37 +38,16 @@ export const loginUser = createAsyncThunk(
 
 //for mobile number
 // Step 1: Request OTP
-export const requestOtp = createAsyncThunk(
-  "auth/requestOtp",
-  async ({ mobile }, { rejectWithValue }) => {
+export const sendLoginOtp = createAsyncThunk(
+  "auth/sendLoginOtp",
+  async ({ phone_number }, { rejectWithValue }) => {
     try {
-      
-      const { data } = await loginMobileApi({phone_number:mobile});
-      
-      // data = { temp_token, message, ... }
+      const { data } = await loginMobileApi({ phone_number });
+      // expect: { pending:true, phone_number, temp_token, message } OR direct login payload
       return data;
     } catch (err) {
-      return rejectWithValue(err.response?.data || "Failed to send OTP");
-    }
-  }
-);
-
-// Step 2: Verify OTP + temp token
-export const verifyOtp = createAsyncThunk(
-  "auth/verifyOtp",
-  async ({ temp_token, otp }, { rejectWithValue }) => {
-    try {
-      const { data } = await verifyOtpApi({ temp_token, otp });
-      // data = { access, user } ; refresh token is set as HttpOnly cookie
-       // backend should set HttpOnly refresh cookie; we store access token in cookie (client-side)
-      if (data?.access) {
-        cookies.set("access_token", data.access, { path: "/", sameSite: "strict" });
-      }
-      // return user
-      //return data.user ?? null;
-      return data;
-    } catch (err) {
-      return rejectWithValue(err.response?.data || "OTP verification failed");
+      const data = err?.response?.data ?? err?.data ?? err?.message ?? "Failed to send OTP";
+      return rejectWithValue(data);
     }
   }
 );

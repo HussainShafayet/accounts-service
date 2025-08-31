@@ -1,6 +1,9 @@
 // src/features/otp/otpThunks.js
 import { createAsyncThunk } from "@reduxjs/toolkit";
 import api from "../../api/axios";
+import {Cookies} from "react-cookie";
+
+const cookies = new Cookies();
 
 /** Endpoint maps (আপনার URL গুলো অনুযায়ী) */
 const VERIFY_ENDPOINT_MAP = {
@@ -38,6 +41,10 @@ export const verifyOtp = createAsyncThunk(
       const payload = { otp, temp_token: tempToken, ...extra };
       
       const { data } = await api.post(endpoint, payload);
+
+      if (data?.access) {
+        cookies.set("access_token", data.access, { path: "/", sameSite: "strict" });
+      }
 
       return { context, ...data }; // context ফেরত দিচ্ছি যাতে slice সহজে হ্যান্ডল করে
     } catch (err) {
