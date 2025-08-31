@@ -19,8 +19,8 @@ export default function Login() {
   const onSubmit = (e) => {
     e.preventDefault();
     const body = form.identifier.includes("@")
-      ? { email: form.identifier, password: form.password }
-      : { username: form.identifier, password: form.password };
+      ? { login: form.identifier, password: form.password }
+      : { login: form.identifier, password: form.password };
 
     dispatch(loginUser(body)).then((res) => {
       if (res.meta.requestStatus === "fulfilled") {
@@ -70,6 +70,16 @@ export default function Login() {
             Login with Phone OTP
           </Link>
           <Link to="/register" className="text-blue-600 hover:underline">Create an account</Link>
+
+           {/* Forgot password link (password ফিল্ডের নিচে বা বাটনের উপরে) */}
+  <div className="flex justify-end -mt-2">
+    <Link
+      to="/forgot-password"
+      className="text-sm text-blue-600 hover:underline"
+    >
+      Forgot password?
+    </Link>
+  </div>
         </div>
       </div>
     </div>

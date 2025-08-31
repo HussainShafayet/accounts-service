@@ -6,6 +6,9 @@ import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
 import PrivateRoute from "./components/PrivateRoute";
 import OtpLogin from "./pages/OtpLogin";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetNewPassword from "./pages/ResetNewPassword";
+import Verify from "./pages/Verify";
 
 function App() {
   return (
@@ -19,6 +22,9 @@ function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/phone-login" element={<OtpLogin />} />
           <Route path="/register" element={<Register />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password/new" element={<ResetNewPassword />} />
+          <Route path="verify" element={<Verify />} /> 
           <Route
             path="/dashboard"
             element={
