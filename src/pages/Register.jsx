@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { Link, useNavigate } from "react-router-dom";
 import { registerUser } from "../features/auth/authThunks";
+import { startOtpFlow } from "../features/otp/otpThunks"; // ✅ NEW
 
 /**
  * Normalize backend errors of shape:
@@ -194,8 +195,31 @@ export default function Register() {
 
     try {
       const { confirm_password, ...payload } = form;
-      await dispatch(registerUser(payload)).unwrap();
-      navigate("/dashboard");
+
+      // Backend expected to return:
+      // { pending:true, via, email?|phone_number?, temp_token, message }
+      const res = await dispatch(registerUser(payload)).unwrap();
+
+      // ✅ Start common OTP flow for "registration"
+      await dispatch(
+        startOtpFlow({
+          context: "registration",
+          identity: res?.email
+            ? { email: res.email }
+            : res?.phone_number
+            ? { phone_number: res.phone_number }
+            : (payload.email
+                ? { email: payload.email }
+                : payload.phone_number
+                ? { phone_number: payload.phone_number }
+                : null),
+          tempToken: res?.temp_token,   // may be undefined if backend uses link token only
+          message: res?.message,
+        })
+      );
+
+      // ➜ Go to Verify page (OTP input / auto-verify via link)
+      navigate("/verify");
     } catch (err) {
       const data =
         err?.response?.data ??
@@ -207,7 +231,7 @@ export default function Register() {
       // Merge field errors
       setErrors((prev) => ({ ...prev, ...fieldErrors }));
       // Non-field
-      setServerErrors((prev) => prev.concat(generalErrors));
+      setServerErrors((prev) => prev.concat(generalErrors.length ? generalErrors : ["Registration failed"]));
     } finally {
       setIsSubmitting(false);
     }
@@ -406,13 +430,12 @@ export default function Register() {
                 onChange={(e) => setField("password", e.target.value)}
                 onBlur={() => markTouched("password")}
                 placeholder="Enter a strong password"
-                type={touched.showPw ? "text" : "password"} // simple toggle holder
+                type={touched.showPw ? "text" : "password"}
                 autoComplete="new-password"
                 maxLength={64}
                 aria-invalid={!!fieldHasError("password")}
                 aria-describedby={fieldHasError("password") ? "password-errors" : "password-strength"}
               />
-              {/* lightweight show/hide without extra state keys */}
               <button
                 type="button"
                 onClick={() => setTouched((t) => ({ ...t, showPw: !t.showPw }))}
@@ -444,7 +467,7 @@ export default function Register() {
                 type={touched.showCPw ? "text" : "password"}
                 autoComplete="new-password"
                 maxLength={64}
-                onPaste={(e) => e.preventDefault()} // optional UX: prevent paste
+                onPaste={(e) => e.preventDefault()}
                 aria-invalid={!!fieldHasError("confirm_password")}
                 aria-describedby={
                   fieldHasError("confirm_password") ? "confirm_password-errors" : undefined
@@ -464,13 +487,15 @@ export default function Register() {
 
           <button
             type="submit"
-            disabled={isSubmitting ||
+            disabled={
+              isSubmitting ||
               !form.first_name ||
               !form.last_name ||
               (!form.email && !form.phone_number) ||
               !form.address ||
               !form.password ||
-              !form.confirm_password}
+              !form.confirm_password
+            }
             className="w-full py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
           >
             {isSubmitting ? "Creating account..." : "Create account"}
