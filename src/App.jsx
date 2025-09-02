@@ -9,6 +9,7 @@ import OtpLogin from "./pages/OtpLogin";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetNewPassword from "./pages/ResetNewPassword";
 import Verify from "./pages/Verify";
+import ChangePassword from "./pages/ChangePassword";
 
 function App() {
   return (
@@ -24,6 +25,8 @@ function App() {
           <Route path="/register" element={<Register />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password/new" element={<ResetNewPassword />} />
+          <Route path="/change-password" element={<ChangePassword />} />
+
           <Route path="verify" element={<Verify />} /> 
           <Route
             path="/dashboard"

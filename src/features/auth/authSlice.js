@@ -1,6 +1,6 @@
 // src/features/auth/authSlice.js
 import { createSlice } from "@reduxjs/toolkit";
-import { loginUser, logoutUser, refreshAccessToken, fetchMe, registerUser, sendLoginOtp } from "./authThunks";
+import { loginUser, logoutUser, refreshAccessToken, fetchMe, registerUser, sendLoginOtp, changePassword } from "./authThunks";
 
 import { Cookies } from "react-cookie";
 import {verifyOtp} from "../otp/otpThunks";
@@ -13,6 +13,11 @@ const initialState = {
   loading: false,
   error: null,
   isAuthenticated: !!accessToken, // true if cookie exists
+
+  // change password ui state
+  changePwLoading: false,
+  changePwError: null,
+  changePwSuccessMsg: null,
 };
 
 const authSlice = createSlice({
@@ -21,6 +26,11 @@ const authSlice = createSlice({
   reducers: {
     clearError: (s) => { s.error = null; },
     setUser: (s, a) => { s.user = a.payload; s.isAuthenticated = !!a.payload; },
+    clearChangePwState: (s) => {
+      s.changePwLoading = false;
+      s.changePwError = null;
+      s.changePwSuccessMsg = null;
+    },
   },
   extraReducers: (b) => {
     b
@@ -71,8 +81,23 @@ const authSlice = createSlice({
 
     // optional refresh handling
     b.addCase(refreshAccessToken.rejected, (s) => { s.user = null; s.isAuthenticated = false; });
+
+    b.addCase(changePassword.pending, (s) => {
+      s.changePwLoading = true;
+      s.changePwError = null;
+      s.changePwSuccessMsg = null;
+    });
+    b.addCase(changePassword.fulfilled, (s, a) => {
+      s.changePwLoading = false;
+      s.changePwSuccessMsg =
+        a.payload?.detail || "Password changed successfully.";
+    });
+    b.addCase(changePassword.rejected, (s, a) => {
+      s.changePwLoading = false;
+      s.changePwError = a.payload || "Password change failed.";
+    });
   },
 });
 
-export const { clearError, setUser } = authSlice.actions;
+export const { clearError, setUser, clearChangePwState } = authSlice.actions;
 export default authSlice.reducer;

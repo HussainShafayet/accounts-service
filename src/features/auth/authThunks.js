@@ -1,7 +1,7 @@
 // src/features/auth/authThunks.js
 import { createAsyncThunk } from "@reduxjs/toolkit";
 import { Cookies } from "react-cookie";
-import { loginUserApi, logoutApi, refreshTokenApi, meApi, loginMobileApi, registerApi } from "../../api/authService";
+import { loginUserApi, logoutApi, refreshTokenApi, meApi, loginMobileApi, registerApi, passwordChange } from "../../api/authService";
 
 const cookies = new Cookies();
 
@@ -64,6 +64,22 @@ export const refreshAccessToken = createAsyncThunk(
       return rejectWithValue("No access token");
     } catch (e) {
       return rejectWithValue("Refresh failed");
+    }
+  }
+);
+
+export const changePassword = createAsyncThunk(
+  "auth/changePassword",
+  async ({ old_password, new_password }, { rejectWithValue }) => {
+    try {
+      const { data } = await passwordChange({
+        old_password,
+        new_password
+      });
+      return data; // expecting e.g. { detail: "Password changed successfully." }
+    } catch (err) {
+      const data = err?.response?.data ?? err?.data ?? err?.message ?? "Password change failed";
+      return rejectWithValue(data);
     }
   }
 );

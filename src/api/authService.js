@@ -10,3 +10,4 @@ export const registerUserApi = (body) => api.post("/register/", body);
 export const refreshTokenApi = () => api.post("/token/refresh/"); // uses HttpOnly refresh cookie
 export const logoutApi = () => api.post("/logout/"); // backend clears refresh cookie
 export const meApi = () => api.get("/me/"); // protected
+export const passwordChange = (body) => api.post("/change-password/", body);
