@@ -1,13 +1,18 @@
-// src/pages/Verify.jsx
 import { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useLocation, useNavigate } from "react-router-dom";
 import { verifyOtp, resendOtp } from "../features/otp/otpThunks";
-import { resetOtpState } from "../features/otp/otpSlice";
+import { resetOtpState, rehydrateOtpFromStorage } from "../features/otp/otpSlice";
 
 function useQuery() {
   return new URLSearchParams(useLocation().search);
 }
+
+const RESTART_PATH = {
+  registration: "/register",
+  login: "/login",
+  reset: "/forgot-password",
+};
 
 export default function Verify() {
   const dispatch = useDispatch();
@@ -15,45 +20,70 @@ export default function Verify() {
   const qs = useQuery();
 
   const {
-    active, context, identity, tempToken, message,
-    verifyLoading, verifyError, verified,
-    resendLoading, resendError,
+    active,
+    context,
+    identity,
+    tempToken,
+    message,
+    verifyLoading,
+    verifyError,
+    verified,
+    resendLoading,
+    resendError,
   } = useSelector((s) => s.otp);
   const { isAuthenticated } = useSelector((s) => s.auth);
 
   const [code, setCode] = useState("");
 
-  // URL ?token=XYZ থাকলে এবং flow active থাকলে auto-verify
+  // 1) Try to rehydrate on mount if not active
   useEffect(() => {
-    const t = qs.get("token");
-    if (t && active && context) {
-      dispatch(verifyOtp({ context, otp: t, tempToken }));
-    }
-  }, [dispatch]); // eslint-disable-line
+    if (!active) dispatch(rehydrateOtpFromStorage());
+  }, [active, dispatch]);
 
-  // success routing
+  // 2) URL token support: ?token=CODE (&t=TEMPTOKEN optional)
+  useEffect(() => {
+    const urlCode = qs.get("token");
+    const urlTemp = qs.get("t");
+    if (urlCode && (context || active)) {
+      const tt = urlTemp || tempToken || undefined;
+      dispatch(verifyOtp({ context, otp: urlCode, tempToken: tt }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dispatch, context, active]);
+
+  // 3) Success routing
   useEffect(() => {
     if (!verified) return;
-    if (context === "registration") {
-      navigate(isAuthenticated ? "/dashboard" : "/login");
-    } else if (context === "login") {
-      navigate("/dashboard");
-    } else if (context === "reset") {
-      navigate("/reset-password/new"); // নতুন পাসওয়ার্ড সেট করার পেজ
-    }
+    if (context === "registration") navigate(isAuthenticated ? "/dashboard" : "/login");
+    else if (context === "login") navigate("/dashboard");
+    else if (context === "reset") navigate("/reset-password/new");
     dispatch(resetOtpState());
   }, [verified, context, isAuthenticated, navigate, dispatch]);
 
-  if (!active) {
+  // ✅ verified guard → prevents "expired" flash
+  if (verified) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-50">
         <div className="w-full max-w-md bg-white rounded-2xl shadow p-8 text-center">
-          <p className="text-gray-700 mb-4">No verification in progress.</p>
+          <p className="text-gray-700">Verification successful. Redirecting…</p>
+        </div>
+      </div>
+    );
+  }
+
+  // 4) If still not active after rehydrate → show restart
+  if (!active) {
+    const ctx = qs.get("ctx") || "login";
+    const backTo = RESTART_PATH[ctx] || "/login";
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+        <div className="w-full max-w-md bg-white rounded-2xl shadow p-8 text-center">
+          <p className="text-gray-700 mb-4">Your verification session expired.</p>
           <button
-            onClick={() => navigate("/login")}
+            onClick={() => navigate(backTo)}
             className="py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
           >
-            Go to Login
+            Restart
           </button>
         </div>
       </div>
@@ -68,8 +98,10 @@ export default function Verify() {
 
   const onSubmit = (e) => {
     e.preventDefault();
+    const urlTemp = qs.get("t");
+    const tt = urlTemp || tempToken || undefined;
     if (!code.trim()) return;
-    dispatch(verifyOtp({ context, otp: code.trim(), tempToken }));
+    dispatch(verifyOtp({ context, otp: code.trim(), tempToken: tt }));
   };
 
   const onResend = () => {
@@ -80,16 +112,22 @@ export default function Verify() {
     <div className="flex items-center justify-center min-h-screen bg-gray-50">
       <div className="w-full max-w-md bg-white rounded-2xl shadow p-8">
         <h2 className="text-2xl font-semibold text-center mb-4">
-          Verify {context === "registration" ? "registration"
-                  : context === "login" ? "login"
-                  : "password reset"}
+          Verify{" "}
+          {context === "registration"
+            ? "registration"
+            : context === "login"
+            ? "login"
+            : "password reset"}
         </h2>
         <p className="text-sm text-gray-600 mb-4">
           We sent an OTP to {where}. {message ? `(${message})` : ""}
         </p>
 
         {verifyError && (
-          <div className="text-red-700 bg-red-50 border border-red-200 rounded p-3 text-sm mb-4" role="alert">
+          <div
+            className="text-red-700 bg-red-50 border border-red-200 rounded p-3 text-sm mb-4"
+            role="alert"
+          >
             {typeof verifyError === "string" ? verifyError : JSON.stringify(verifyError)}
           </div>
         )}
@@ -129,7 +167,9 @@ export default function Verify() {
           </button>
           {resendError && (
             <p className="text-red-600 text-sm mt-2">
-              {typeof resendError === "string" ? resendError : JSON.stringify(resendError)}
+              {typeof resendError === "string"
+                ? resendError
+                : JSON.stringify(resendError)}
             </p>
           )}
         </div>

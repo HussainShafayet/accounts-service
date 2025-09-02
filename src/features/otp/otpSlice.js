@@ -1,4 +1,3 @@
-// src/features/otp/otpSlice.js
 import { createSlice } from "@reduxjs/toolkit";
 import { startOtpFlow, verifyOtp, resendOtp } from "./otpThunks";
 
@@ -13,6 +12,7 @@ function saveToSession(state) {
       identity: state.identity,
       tempToken: state.tempToken,
       message: state.message,
+      verified: state.verified,
       startedAt: Date.now(),
     };
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
@@ -33,7 +33,9 @@ function loadFromSession() {
   }
 }
 function clearSession() {
-  try { sessionStorage.removeItem(STORAGE_KEY); } catch {}
+  try {
+    sessionStorage.removeItem(STORAGE_KEY);
+  } catch {}
 }
 
 const initialState = {
@@ -58,8 +60,6 @@ const otpSlice = createSlice({
       clearSession();
       return initialState;
     },
-
-    // ✅ NEW: refresh হলে Verify পেজ থেকে কল করে state ফিরিয়ে আনবো
     rehydrateOtpFromStorage: (s) => {
       const data = loadFromSession();
       if (!data) return;
@@ -68,9 +68,9 @@ const otpSlice = createSlice({
       s.identity = data.identity || null;
       s.tempToken = data.tempToken || null;
       s.message = data.message || null;
+      s.verified = data.verified || false;
       s.verifyError = null;
       s.resendError = null;
-      // verified=false; verifyLoading=false; keep as default
     },
   },
   extraReducers: (b) => {
@@ -84,7 +84,7 @@ const otpSlice = createSlice({
       s.verifyError = null;
       s.resendError = null;
       s.extras = {};
-      saveToSession(s); // ✅ persist
+      saveToSession(s);
     });
 
     b.addCase(verifyOtp.pending, (s) => {
@@ -94,36 +94,38 @@ const otpSlice = createSlice({
     b.addCase(verifyOtp.fulfilled, (s, a) => {
       const ctx = a.payload?.context || a.meta?.arg?.context;
       s.verifyLoading = false;
-      s.verified = !!a.payload?.verified;
+      s.verified = (a.payload?.verified ?? true);
 
       if (ctx === "reset") {
         if (a.payload?.reset_token) {
           s.extras.reset_token = a.payload.reset_token;
           s.tempToken = null;
         }
-        // else: keep tempToken for finalize step
+        // keep active=true for reset
       } else {
+        // login / registration: শুধু tempToken drop করুন
         s.tempToken = null;
       }
-
-      saveToSession(s); // ✅ update (may clear tempToken)
+      saveToSession(s);
     });
     b.addCase(verifyOtp.rejected, (s, a) => {
       s.verifyLoading = false;
       s.verifyError = a.payload || "Verification failed";
-      saveToSession(s); // ✅ error persist (optional)
+      saveToSession(s);
     });
 
     b.addCase(resendOtp.pending, (s) => {
-      s.resendLoading = true; s.resendError = null;
+      s.resendLoading = true;
+      s.resendError = null;
     });
     b.addCase(resendOtp.fulfilled, (s) => {
       s.resendLoading = false;
-      saveToSession(s); // optional
+      saveToSession(s);
     });
     b.addCase(resendOtp.rejected, (s, a) => {
-      s.resendLoading = false; s.resendError = a.payload || "Resend failed";
-      saveToSession(s); // optional
+      s.resendLoading = false;
+      s.resendError = a.payload || "Resend failed";
+      saveToSession(s);
     });
   },
 });
