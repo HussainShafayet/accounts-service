@@ -2,13 +2,16 @@
 import { Link } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
 import { logoutUser } from "../features/auth/authThunks";
+import { useState } from "react";
 
 export default function Navbar() {
   const dispatch = useDispatch();
   const { isAuthenticated, user } = useSelector((state) => state.auth);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const handleLogout = () => {
     dispatch(logoutUser());
+    setMenuOpen(false);
   };
 
   return (
@@ -17,7 +20,7 @@ export default function Navbar() {
         <div className="flex justify-between h-16">
           {/* Logo */}
           <div className="flex items-center">
-            <Link to="/" className="text-xl font-bold text-blue-600">
+            <Link to="/dashboard" className="text-xl font-bold text-blue-600">
               MyApp
             </Link>
           </div>
@@ -25,15 +28,56 @@ export default function Navbar() {
           {/* Links */}
           <div className="flex items-center space-x-4">
             {isAuthenticated ? (
-              <>
-                <span className="text-gray-700">Hello, {user?.username}</span>
+              <div className="relative">
                 <button
-                  onClick={handleLogout}
-                  className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600"
+                  onClick={() => setMenuOpen((o) => !o)}
+                  className="flex items-center space-x-2 px-3 py-1 bg-gray-100 rounded hover:bg-gray-200"
                 >
-                  Logout
+                  <span className="text-gray-700">
+                    {user?.username || "User"}
+                  </span>
+                  <svg
+                    className={`w-4 h-4 transform transition-transform ${
+                      menuOpen ? "rotate-180" : ""
+                    }`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M19 9l-7 7-7-7"
+                    />
+                  </svg>
                 </button>
-              </>
+
+                {menuOpen && (
+                  <div className="absolute right-0 mt-2 w-48 bg-white border rounded shadow-lg z-50">
+                    <Link
+                      to="/profile"
+                      onClick={() => setMenuOpen(false)}
+                      className="block px-4 py-2 text-gray-700 hover:bg-gray-100"
+                    >
+                      Profile
+                    </Link>
+                    <Link
+                      to="/change-password"
+                      onClick={() => setMenuOpen(false)}
+                      className="block px-4 py-2 text-gray-700 hover:bg-gray-100"
+                    >
+                      Change Password
+                    </Link>
+                    <button
+                      onClick={handleLogout}
+                      className="w-full text-left px-4 py-2 text-red-600 hover:bg-red-50"
+                    >
+                      Logout
+                    </button>
+                  </div>
+                )}
+              </div>
             ) : (
               <>
                 <Link
