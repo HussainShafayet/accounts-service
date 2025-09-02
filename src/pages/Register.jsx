@@ -1,19 +1,14 @@
 // src/pages/Register.jsx
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { Link, useNavigate } from "react-router-dom";
 import { registerUser } from "../features/auth/authThunks";
-import { startOtpFlow } from "../features/otp/otpThunks"; // ✅ NEW
+import { startOtpFlow } from "../features/otp/otpThunks";
+import ReCAPTCHA from "react-google-recaptcha";
 
 /**
- * Normalize backend errors of shape:
- * {
- *   "email": ["This email is already registered."],
- *   "phone_number": ["This field may not be blank."],
- *   "password": ["This password is too common.", "This password is entirely numeric."],
- *   "non_field_errors": ["Something went wrong"],
- *   "detail": "Auth failed"
- * }
+ * Normalize backend errors like:
+ * { "email": ["..."], "captcha": ["Invalid"], "detail": "..." }
  */
 function normalizeBackendErrors(payload) {
   const fieldErrors = {};
@@ -39,21 +34,16 @@ function normalizeBackendErrors(payload) {
 }
 
 /* ------------------------- client-side helpers ------------------------- */
-
 const normalize = {
   email: (v) => v.trim(),
   phone: (v) =>
-    v
-      .replace(/[^\d+]/g, "") // keep digits and '+'
-      .replace(/^00/, "+") // 00xx -> +xx
-      .trim(),
+    v.replace(/[^\d+]/g, "").replace(/^00/, "+").trim(),
   text: (v) => v.trim().replace(/\s+/g, " "),
 };
 
-// basic validators
 const isValidEmail = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
-const isValidPhone = (v) => /^\+?[1-9]\d{7,14}$/.test(v); // 8–15 digits, no leading zero after country code
-const nameRegex = /^[A-Za-zÀ-ÖØ-öø-ÿ' -]{2,40}$/;          // supports many locales
+const isValidPhone = (v) => /^\+?[1-9]\d{7,14}$/.test(v);
+const nameRegex = /^[A-Za-zÀ-ÖØ-öø-ÿ' -]{2,40}$/;
 const isCommonPassword = (v) => /^(123456|password|qwerty|111111|123123|abc123)$/i.test(v);
 const isAllNumeric = (v) => /^\d+$/.test(v);
 
@@ -91,6 +81,11 @@ export default function Register() {
   // non-field server errors
   const [serverErrors, setServerErrors] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // reCAPTCHA
+  const recaptchaRef = useRef(null);
+  const [captchaToken, setCaptchaToken] = useState("");
+  const siteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY || "";
 
   useEffect(() => {
     if (isAuthenticated) navigate("/dashboard");
@@ -145,13 +140,12 @@ export default function Register() {
     if (fn && !nameRegex.test(fn)) push("first_name", "First name looks invalid.");
     if (ln && !nameRegex.test(ln)) push("last_name", "Last name looks invalid.");
 
-    // Email OR phone required (inclusive rule)
+    // Email OR phone required
     if (!em && !ph) {
       push("email", "Provide either email or phone number.");
       push("phone_number", "Provide either email or phone number.");
     }
 
-    // Email/Phone formats (only if present)
     if (em && !isValidEmail(em)) push("email", "Enter a valid email address.");
     if (ph && !isValidPhone(ph)) push("phone_number", "Enter a valid phone number (E.164).");
 
@@ -170,6 +164,9 @@ export default function Register() {
     if (!cpw) push("confirm_password", "Confirm your password.");
     if (pw && cpw && pw !== cpw) push("confirm_password", "Passwords do not match.");
 
+    // Captcha (client-side)
+    if (!captchaToken) push("captcha", "Please complete the captcha.");
+
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -186,21 +183,27 @@ export default function Register() {
       address: true,
       password: true,
       confirm_password: true,
+      captcha: true,
     });
 
     if (!validate()) return;
 
     setIsSubmitting(true);
     setServerErrors([]);
-
+    
     try {
       const { confirm_password, ...payload } = form;
 
-      // Backend expected to return:
-      // { pending:true, via, email?|phone_number?, temp_token, message }
-      const res = await dispatch(registerUser(payload)).unwrap();
+      // include captcha token for backend verification
+      const res = await dispatch(
+        registerUser({ ...payload, captcha_token: captchaToken })
+      ).unwrap();
+      
+      // reset captcha (optional UX)
+      if (recaptchaRef.current) recaptchaRef.current.reset();
+      setCaptchaToken("");
 
-      // ✅ Start common OTP flow for "registration"
+      // start OTP flow
       await dispatch(
         startOtpFlow({
           context: "registration",
@@ -208,30 +211,44 @@ export default function Register() {
             ? { email: res.email }
             : res?.phone_number
             ? { phone_number: res.phone_number }
-            : (payload.email
-                ? { email: payload.email }
-                : payload.phone_number
-                ? { phone_number: payload.phone_number }
-                : null),
-          tempToken: res?.temp_token,   // may be undefined if backend uses link token only
+            : payload.email
+            ? { email: payload.email }
+            : payload.phone_number
+            ? { phone_number: payload.phone_number }
+            : null,
+          tempToken: res?.temp_token,
           message: res?.message,
         })
       );
 
-      // ➜ Go to Verify page (OTP input / auto-verify via link)
       navigate("/verify");
     } catch (err) {
-      const data =
-        err?.response?.data ??
-        err?.data ?? // some libs
-        err;
-
+      
+      // If captcha fails on server, show under captcha as well
+      const data = err?.response?.data ?? err?.data ?? err;
       const { fieldErrors, generalErrors } = normalizeBackendErrors(data);
 
-      // Merge field errors
-      setErrors((prev) => ({ ...prev, ...fieldErrors }));
-      // Non-field
-      setServerErrors((prev) => prev.concat(generalErrors.length ? generalErrors : ["Registration failed"]));
+      // Map possible backend keys to "captcha"
+      const captchaServerErrors =
+        fieldErrors.captcha ||
+        fieldErrors.captcha_token ||
+        fieldErrors["g-recaptcha-response"];
+
+      const nextFieldErrors = { ...fieldErrors };
+      if (captchaServerErrors) {
+        nextFieldErrors.captcha = captchaServerErrors;
+        delete nextFieldErrors.captcha_token;
+        delete nextFieldErrors["g-recaptcha-response"];
+      }
+
+      setErrors((prev) => ({ ...prev, ...nextFieldErrors }));
+      setServerErrors((prev) =>
+        prev.concat(generalErrors.length ? generalErrors : ["Registration failed"])
+      );
+
+      // reset captcha on error (best practice)
+      if (recaptchaRef.current) recaptchaRef.current.reset();
+      setCaptchaToken("");
     } finally {
       setIsSubmitting(false);
     }
@@ -244,7 +261,8 @@ export default function Register() {
     (!form.email && !form.phone_number) ||
     !form.address ||
     !form.password ||
-    !form.confirm_password;
+    !form.confirm_password ||
+    !captchaToken; // ⬅️ captcha solved required
 
   // UI classes
   const fieldClassBase =
@@ -259,14 +277,11 @@ export default function Register() {
   const labelClass = "block text-gray-700 mb-1";
   const errClass = "text-red-500 text-xs mt-1";
 
-  // helper to render list of errors for a field
   const FieldErrors = ({ name, id }) =>
     errors?.[name]?.length ? (
       <ul id={id} className="mt-1 space-y-0.5">
         {errors[name].map((m, i) => (
-          <li key={i} className={errClass}>
-            • {m}
-          </li>
+          <li key={i} className={errClass}>• {m}</li>
         ))}
       </ul>
     ) : null;
@@ -485,17 +500,36 @@ export default function Register() {
             <FieldErrors name="confirm_password" id="confirm_password-errors" />
           </div>
 
+          {/* reCAPTCHA */}
+          <div>
+            <label className={labelClass}>Captcha</label>
+            {!siteKey ? (
+              <p className="text-xs text-orange-600">
+                ⚠️ Missing <code>VITE_RECAPTCHA_SITE_KEY</code>. Add it to your .env to enable captcha.
+              </p>
+            ) : (
+              <ReCAPTCHA
+                ref={recaptchaRef}
+                sitekey={siteKey}
+                onChange={(token) => {
+                  setCaptchaToken(token || "");
+                  // clear captcha errors on change
+                  setErrors((e) => {
+                    if (!e.captcha) return e;
+                    const next = { ...e };
+                    delete next.captcha;
+                    return next;
+                  });
+                }}
+                onExpired={() => setCaptchaToken("")}
+              />
+            )}
+            <FieldErrors name="captcha" id="captcha-errors" />
+          </div>
+
           <button
             type="submit"
-            disabled={
-              isSubmitting ||
-              !form.first_name ||
-              !form.last_name ||
-              (!form.email && !form.phone_number) ||
-              !form.address ||
-              !form.password ||
-              !form.confirm_password
-            }
+            disabled={disabled}
             className="w-full py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
           >
             {isSubmitting ? "Creating account..." : "Create account"}
