@@ -1,6 +1,6 @@
 // src/features/auth/authSlice.js
 import { createSlice } from "@reduxjs/toolkit";
-import { loginUser, logoutUser, refreshAccessToken, fetchMe, registerUser, sendLoginOtp, changePassword, updateProfile } from "./authThunks";
+import { loginUser, logoutUser, refreshAccessToken, fetchMe, registerUser, sendLoginOtp, changePassword, updateProfile, uploadProfilePicture } from "./authThunks";
 
 import { Cookies } from "react-cookie";
 import {verifyOtp} from "../otp/otpThunks";
@@ -23,6 +23,10 @@ const initialState = {
   profileSaving: false,
   profileSaveError: null,
   profileSaveSuccess: null,
+
+  pictureUploading: false,
+  pictureUploadError: null,
+  pictureUploadSuccess: null,
 };
 
 const authSlice = createSlice({
@@ -40,6 +44,9 @@ const authSlice = createSlice({
       s.profileSaving = false;
       s.profileSaveError = null;
       s.profileSaveSuccess = null;
+      s.pictureUploading = false;
+      s.pictureUploadError = null;
+      s.pictureUploadSuccess = null;
     },
   },
   extraReducers: (b) => {
@@ -102,6 +109,17 @@ const authSlice = createSlice({
         s.profileSaving = false;
         s.profileSaveError = a.payload || "Profile update failed.";
       });
+    // picture upload
+    b.addCase(uploadProfilePicture.pending, (s) => {
+      s.pictureUploading = true; s.pictureUploadError = null; s.pictureUploadSuccess = null;
+    });
+    b.addCase(uploadProfilePicture.fulfilled, (s, a) => {
+      s.pictureUploading = false; s.user = a.payload;
+      s.pictureUploadSuccess = "Profile picture updated.";
+    });
+    b.addCase(uploadProfilePicture.rejected, (s, a) => {
+      s.pictureUploading = false; s.pictureUploadError = a.payload || "Upload failed.";
+    });
 
     // optional refresh handling
     b.addCase(refreshAccessToken.rejected, (s) => { s.user = null; s.isAuthenticated = false; });

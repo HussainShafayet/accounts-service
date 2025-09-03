@@ -1,7 +1,7 @@
 // src/features/auth/authThunks.js
 import { createAsyncThunk } from "@reduxjs/toolkit";
 import { Cookies } from "react-cookie";
-import { loginUserApi, logoutApi, refreshTokenApi, meApi, loginMobileApi, registerApi, passwordChange, profileUpdate } from "../../api/authService";
+import { loginUserApi, logoutApi, refreshTokenApi, meApi, loginMobileApi, registerApi, passwordChange, profileUpdate, apiUploadProfilePicture } from "../../api/authService";
 
 const cookies = new Cookies();
 
@@ -113,6 +113,23 @@ export const updateProfile = createAsyncThunk(
       return data;
     } catch (err) {
       return rejectWithValue(err?.response?.data ?? "Failed to update profile");
+    }
+  }
+);
+
+export const uploadProfilePicture = createAsyncThunk(
+  "auth/uploadProfilePicture",
+  async (file, { rejectWithValue }) => {
+    try {
+      const fd = new FormData();
+      fd.append("profile_picture", file);
+      // PUT/PATCH — backend যেটা চায় সেটি ব্যবহার করুন
+      const { data } = await apiUploadProfilePicture(fd, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      return data; // updated user object
+    } catch (err) {
+      return rejectWithValue(err?.response?.data ?? "Failed to upload picture");
     }
   }
 );

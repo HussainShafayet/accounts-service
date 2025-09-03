@@ -11,4 +11,5 @@ export const refreshTokenApi = () => api.post("/token/refresh/"); // uses HttpOn
 export const logoutApi = () => api.post("/logout/"); // backend clears refresh cookie
 export const meApi = () => api.get("/me/"); // protected
 export const profileUpdate = (body) => api.patch("/me/", body); // protected
+export const apiUploadProfilePicture = (body, header) => api.patch("/me/", body, header); // protected
 export const passwordChange = (body) => api.post("/change-password/", body);
