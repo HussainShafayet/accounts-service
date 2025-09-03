@@ -2,10 +2,13 @@
 import { useEffect } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { fetchMe } from "../features/auth/authThunks";
+import { toAbsoluteMediaUrl } from "../utils/url";
 
 export default function Profile() {
   const dispatch = useDispatch();
   const { user, loading, error } = useSelector((s) => s.auth);
+
+  const avatarUrl = toAbsoluteMediaUrl(user?.profile_picture);
 
   useEffect(() => {
     dispatch(fetchMe());
@@ -40,9 +43,9 @@ export default function Profile() {
       <div className="w-full max-w-3xl bg-white rounded-2xl shadow-lg p-8">
         {/* Avatar + Title */}
         <div className="flex flex-col items-center mb-8">
-          {user.avatar_url ? (
+          {avatarUrl ? (
             <img
-              src={user.avatar_url}
+              src={avatarUrl}
               alt="Profile"
               className="w-24 h-24 rounded-full object-cover border-2 border-blue-500"
             />
