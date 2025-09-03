@@ -1,7 +1,7 @@
 // src/features/auth/authThunks.js
 import { createAsyncThunk } from "@reduxjs/toolkit";
 import { Cookies } from "react-cookie";
-import { loginUserApi, logoutApi, refreshTokenApi, meApi, loginMobileApi, registerApi, passwordChange } from "../../api/authService";
+import { loginUserApi, logoutApi, refreshTokenApi, meApi, loginMobileApi, registerApi, passwordChange, profileUpdate } from "../../api/authService";
 
 const cookies = new Cookies();
 
@@ -103,3 +103,16 @@ export const fetchMe = createAsyncThunk("auth/me", async (_, { rejectWithValue }
     return rejectWithValue(e.response?.data || "Failed to fetch profile");
   }
 });
+
+// Update only allowed fields (no email/phone)
+export const updateProfile = createAsyncThunk(
+  "auth/updateProfile",
+  async (payload, { rejectWithValue }) => {
+    try {
+      const { data } = await profileUpdate(payload);
+      return data;
+    } catch (err) {
+      return rejectWithValue(err?.response?.data ?? "Failed to update profile");
+    }
+  }
+);

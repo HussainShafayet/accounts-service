@@ -11,6 +11,7 @@ import ResetNewPassword from "./pages/ResetNewPassword";
 import Verify from "./pages/Verify";
 import ChangePassword from "./pages/ChangePassword";
 import Profile from "./pages/Profile";
+import EditProfile from "./pages/EditProfile";
 
 function App() {
   return (
@@ -28,6 +29,8 @@ function App() {
           <Route path="/reset-password/new" element={<ResetNewPassword />} />
           <Route path="/change-password" element={<PrivateRoute><ChangePassword /></PrivateRoute>} />
           <Route path="/profile" element={<PrivateRoute><Profile /></PrivateRoute>} />
+          <Route path="/profile/edit" element={<PrivateRoute><EditProfile /></PrivateRoute>} />
+
 
 
           <Route path="verify" element={<Verify />} /> 

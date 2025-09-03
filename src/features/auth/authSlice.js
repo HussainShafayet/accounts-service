@@ -1,6 +1,6 @@
 // src/features/auth/authSlice.js
 import { createSlice } from "@reduxjs/toolkit";
-import { loginUser, logoutUser, refreshAccessToken, fetchMe, registerUser, sendLoginOtp, changePassword } from "./authThunks";
+import { loginUser, logoutUser, refreshAccessToken, fetchMe, registerUser, sendLoginOtp, changePassword, updateProfile } from "./authThunks";
 
 import { Cookies } from "react-cookie";
 import {verifyOtp} from "../otp/otpThunks";
@@ -18,6 +18,11 @@ const initialState = {
   changePwLoading: false,
   changePwError: null,
   changePwSuccessMsg: null,
+
+   // profile edit ui
+  profileSaving: false,
+  profileSaveError: null,
+  profileSaveSuccess: null,
 };
 
 const authSlice = createSlice({
@@ -30,6 +35,11 @@ const authSlice = createSlice({
       s.changePwLoading = false;
       s.changePwError = null;
       s.changePwSuccessMsg = null;
+    },
+    clearProfileUpdateState: (s) => {
+      s.profileSaving = false;
+      s.profileSaveError = null;
+      s.profileSaveSuccess = null;
     },
   },
   extraReducers: (b) => {
@@ -79,6 +89,20 @@ const authSlice = createSlice({
 
       .addCase(logoutUser.fulfilled, (s) => { s.user = null; s.isAuthenticated = false; });
 
+
+      // update
+      b.addCase(updateProfile.pending, (s) => {
+        s.profileSaving = true; s.profileSaveError = null; s.profileSaveSuccess = null;
+      });
+      b.addCase(updateProfile.fulfilled, (s, a) => {
+        s.profileSaving = false; s.user = a.payload;
+        s.profileSaveSuccess = "Profile updated successfully.";
+      });
+      b.addCase(updateProfile.rejected, (s, a) => {
+        s.profileSaving = false;
+        s.profileSaveError = a.payload || "Profile update failed.";
+      });
+
     // optional refresh handling
     b.addCase(refreshAccessToken.rejected, (s) => { s.user = null; s.isAuthenticated = false; });
 
@@ -99,5 +123,5 @@ const authSlice = createSlice({
   },
 });
 
-export const { clearError, setUser, clearChangePwState } = authSlice.actions;
+export const { clearError, setUser, clearChangePwState,clearProfileUpdateState } = authSlice.actions;
 export default authSlice.reducer;
