@@ -2,12 +2,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import {
-    fetchMe,
+  fetchMe,
   updateProfile,
   uploadProfilePicture,
 } from "../features/auth/authThunks";
 import { clearProfileUpdateState } from "../features/auth/authSlice";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { toAbsoluteMediaUrl } from "../utils/url";
 
 /* ---------------- normalize backend error helper ---------------- */
@@ -32,6 +32,7 @@ function normalizeErrors(payload) {
 /* ---------------- Main Component ---------------- */
 export default function EditProfile() {
   const dispatch = useDispatch();
+  const navigate = useNavigate();
   const {
     user,
     loading,
@@ -119,7 +120,12 @@ export default function EditProfile() {
   /* submit profile form */
   const onSubmit = async (e) => {
     e.preventDefault();
-    setTouched({ first_name: true, last_name: true, username: true, address: true });
+    setTouched({
+      first_name: true,
+      last_name: true,
+      username: true,
+      address: true,
+    });
     if (!validate()) return;
 
     try {
@@ -164,14 +170,13 @@ export default function EditProfile() {
     if (!localFile) return;
     try {
       await dispatch(uploadProfilePicture(localFile)).unwrap();
-      setLocalFile(null);
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
-      setPreviewUrl(null);
-      if (fileInputRef.current) fileInputRef.current.value = "";
+      cleanupPreview();
     } catch {}
   };
 
-  const onCancelPreview = () => {
+  const onCancelPreview = () => cleanupPreview();
+
+  const cleanupPreview = () => {
     setLocalFile(null);
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     setPreviewUrl(null);
@@ -193,7 +198,7 @@ export default function EditProfile() {
   const errClass = "text-red-500 text-xs mt-1";
   const FieldErrors = ({ name }) =>
     errors?.[name]?.length ? (
-      <ul className="mt-1 space-y-0.5">
+      <ul className="mt-1 space-y-0.5" role="alert">
         {errors[name].map((m, i) => (
           <li key={i} className={errClass}>
             • {m}
@@ -202,7 +207,15 @@ export default function EditProfile() {
       </ul>
     ) : null;
 
-  const disabled = profileSaving || !form.first_name || !form.last_name;
+  // ✅ detect if changed
+  const changed =
+    form.first_name !== (user?.first_name || "") ||
+    form.last_name !== (user?.last_name || "") ||
+    form.username !== (user?.username || "") ||
+    form.address !== (user?.address || "");
+
+  const disabled =
+    profileSaving || !changed || !form.first_name || !form.last_name;
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-100">
@@ -270,14 +283,14 @@ export default function EditProfile() {
                 )}
               </div>
               {pictureUploadError && (
-                <p className="text-sm text-red-600 mt-2">
+                <p className="text-sm text-red-600 mt-2" role="alert">
                   {typeof pictureUploadError === "string"
                     ? pictureUploadError
                     : JSON.stringify(pictureUploadError)}
                 </p>
               )}
               {pictureUploadSuccess && (
-                <p className="text-sm text-green-600 mt-2">
+                <p className="text-sm text-green-600 mt-2" role="alert">
                   {pictureUploadSuccess}
                 </p>
               )}
@@ -290,20 +303,29 @@ export default function EditProfile() {
 
         {/* Server errors */}
         {!!serverErrors.length && (
-          <div className="text-red-700 bg-red-50 border border-red-200 rounded p-3 text-sm mb-4">
+          <div
+            className="text-red-700 bg-red-50 border border-red-200 rounded p-3 text-sm mb-4"
+            role="alert"
+          >
             {serverErrors.map((m, i) => (
               <div key={i}>• {m}</div>
             ))}
           </div>
         )}
         {profileSaveError && (
-          <div className="text-red-700 bg-red-50 border border-red-200 rounded p-3 text-sm mb-4">
+          <div
+            className="text-red-700 bg-red-50 border border-red-200 rounded p-3 text-sm mb-4"
+            role="alert"
+          >
             {profileSaveError}
           </div>
         )}
         {profileSaveSuccess && (
-          <div className="text-green-700 bg-green-50 border border-green-200 rounded p-3 text-sm mb-4">
-            {profileSaveSuccess}
+          <div
+            className="text-green-700 bg-green-50 border border-green-200 rounded p-3 text-sm mb-4"
+            role="alert"
+          >
+            {profileSaveSuccess} — redirecting…
           </div>
         )}
 
@@ -330,7 +352,7 @@ export default function EditProfile() {
             </div>
           </div>
 
-            {/* Username */}
+          {/* Username */}
           <div>
             <label className={labelClass} htmlFor="username">
               Username
@@ -392,7 +414,11 @@ export default function EditProfile() {
           <button
             type="submit"
             disabled={disabled}
-            className="w-full py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
+            className={`w-full py-2 px-4 rounded-lg transition ${
+              disabled
+                ? "bg-blue-400 text-white cursor-not-allowed opacity-60"
+                : "bg-blue-600 text-white hover:bg-blue-700"
+            }`}
           >
             {profileSaving ? "Saving..." : "Save changes"}
           </button>
