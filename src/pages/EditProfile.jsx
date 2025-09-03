@@ -47,6 +47,7 @@ export default function EditProfile() {
   const [form, setForm] = useState({
     first_name: "",
     last_name: "",
+    username: "",
     address: "",
   });
   const [touched, setTouched] = useState({});
@@ -69,6 +70,7 @@ export default function EditProfile() {
       setForm({
         first_name: user.first_name || "",
         last_name: user.last_name || "",
+        username: user.username || "",
         address: user.address || "",
       });
     }
@@ -87,6 +89,13 @@ export default function EditProfile() {
     const push = (k, m) => ((e[k] = e[k] || []), e[k].push(m));
     if (!form.first_name.trim()) push("first_name", "First name is required.");
     if (!form.last_name.trim()) push("last_name", "Last name is required.");
+    if (!form.username.trim()) push("username", "Username is required.");
+    if (!/^[a-zA-Z0-9._-]{3,30}$/.test(form.username.trim())) {
+      push(
+        "username",
+        "Only letters, numbers, dot, underscore, hyphen (3–30 chars)."
+      );
+    }
     if (form.address && form.address.trim().length < 6)
       push("address", "Address seems too short (min 6 chars).");
     setErrors(e);
@@ -110,7 +119,7 @@ export default function EditProfile() {
   /* submit profile form */
   const onSubmit = async (e) => {
     e.preventDefault();
-    setTouched({ first_name: true, last_name: true, address: true });
+    setTouched({ first_name: true, last_name: true, username: true, address: true });
     if (!validate()) return;
 
     try {
@@ -118,6 +127,7 @@ export default function EditProfile() {
         updateProfile({
           first_name: form.first_name.trim(),
           last_name: form.last_name.trim(),
+          username: form.username.trim(),
           address: form.address.trim(),
         })
       ).unwrap();
@@ -318,6 +328,22 @@ export default function EditProfile() {
                 className="w-full px-4 py-2 border rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed"
               />
             </div>
+          </div>
+
+            {/* Username */}
+          <div>
+            <label className={labelClass} htmlFor="username">
+              Username
+            </label>
+            <input
+              id="username"
+              className={fieldClass("username")}
+              value={form.username}
+              onChange={(e) => setField("username", e.target.value)}
+              onBlur={() => markTouched("username")}
+              placeholder="Enter username"
+            />
+            <FieldErrors name="username" />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

@@ -19,8 +19,8 @@ export default function Profile() {
   const { user, loading, error } = useSelector((s) => s.auth);
 
   useEffect(() => {
-    if (!user) dispatch(fetchMe());
-  }, [dispatch, user]);
+    dispatch(fetchMe());
+  }, [dispatch]);
 
   if (loading && !user) return <div className="min-h-screen grid place-items-center">Loading…</div>;
   if (error) return <div className="min-h-screen grid place-items-center text-red-600">Error: {String(error)}</div>;
