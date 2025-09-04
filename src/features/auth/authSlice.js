@@ -1,6 +1,6 @@
 // src/features/auth/authSlice.js
 import { createSlice } from "@reduxjs/toolkit";
-import { loginUser, logoutUser, refreshAccessToken, fetchMe, registerUser, sendLoginOtp, changePassword, updateProfile, uploadProfilePicture } from "./authThunks";
+import { loginUser, logoutUser, refreshAccessToken, fetchMe, registerUser, sendLoginOtp, changePassword, updateProfile, uploadProfilePicture, loginWithGoogleIdToken } from "./authThunks";
 
 import { Cookies } from "react-cookie";
 import {verifyOtp} from "../otp/otpThunks";
@@ -137,6 +137,20 @@ const authSlice = createSlice({
     b.addCase(changePassword.rejected, (s, a) => {
       s.changePwLoading = false;
       s.changePwError = a.payload || "Password change failed.";
+    });
+
+
+    // Google Sign-In
+    b.addCase(loginWithGoogleIdToken.pending, (s) => {
+      s.loading = true; s.error = null;
+    });
+    b.addCase(loginWithGoogleIdToken.fulfilled, (s, a) => {
+      s.loading = false;
+      s.user = a.payload?.user || null;
+      s.isAuthenticated = !!a.payload?.access;
+    });
+    b.addCase(loginWithGoogleIdToken.rejected, (s, a) => {
+      s.loading = false; s.error = a.payload || "Google login failed";
     });
   },
 });

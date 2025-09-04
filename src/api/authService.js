@@ -13,3 +13,5 @@ export const meApi = () => api.get("/me/"); // protected
 export const profileUpdate = (body) => api.patch("/me/", body); // protected
 export const apiUploadProfilePicture = (body, header) => api.patch("/me/", body, header); // protected
 export const passwordChange = (body) => api.post("/change-password/", body);
+export const googleLoginApi = (body) => api.post("/auth-google/", body);
+

@@ -1,7 +1,7 @@
 // src/features/auth/authThunks.js
 import { createAsyncThunk } from "@reduxjs/toolkit";
 import { Cookies } from "react-cookie";
-import { loginUserApi, logoutApi, refreshTokenApi, meApi, loginMobileApi, registerApi, passwordChange, profileUpdate, apiUploadProfilePicture } from "../../api/authService";
+import { loginUserApi, logoutApi, refreshTokenApi, meApi, loginMobileApi, registerApi, passwordChange, profileUpdate, apiUploadProfilePicture, googleLoginApi } from "../../api/authService";
 
 const cookies = new Cookies();
 
@@ -130,6 +130,23 @@ export const uploadProfilePicture = createAsyncThunk(
       return data; // updated user object
     } catch (err) {
       return rejectWithValue(err?.response?.data ?? "Failed to upload picture");
+    }
+  }
+);
+
+
+export const loginWithGoogleIdToken = createAsyncThunk(
+  "auth/loginWithGoogleIdToken",
+  async (id_token, { rejectWithValue }) => {
+    try {
+      const { data } = await googleLoginApi({ id_token });
+      if (data?.access) {
+        cookies.set("access_token", data.access, { path: "/", sameSite: "strict" });
+        return { access: data.access };
+      }
+      return data;
+    } catch (err) {
+      return rejectWithValue(err?.response?.data || "Google login failed");
     }
   }
 );
